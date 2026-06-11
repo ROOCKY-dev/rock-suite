@@ -17,6 +17,10 @@ jobs:
   release:
     name: Build and publish ${{ github.ref_name }}
     runs-on: ubuntu-latest
+    env:
+      # The secrets context is not usable in step `if` expressions; surface the
+      # marker through job env so the Maven Central step can self-skip.
+      OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,10 +43,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to Maven Central (stable tags, when OSSRH secrets are configured)
-        if: ${{ !contains(github.ref_name, '-') && secrets.OSSRH_USERNAME != '' }}
+        if: ${{ !contains(github.ref_name, '-') && env.OSSRH_USERNAME != '' }}
         run: ./gradlew publishMavenPublicationToSonatypeRepository
         env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
