@@ -38,8 +38,8 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish to Maven Central (stable tags only)
-        if: ${{ !contains(github.ref_name, '-') }}
+      - name: Publish to Maven Central (stable tags, when OSSRH secrets are configured)
+        if: ${{ !contains(github.ref_name, '-') && secrets.OSSRH_USERNAME != '' }}
         run: ./gradlew publishMavenPublicationToSonatypeRepository
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
