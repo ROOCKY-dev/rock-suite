@@ -1,0 +1,6 @@
+U001__create_players.sql
+U002__create_permissions.sql
+U003__create_claims.sql
+U004__create_economy.sql
+U005__create_punishments_audit.sql
+U006__create_discord_metadata.sql

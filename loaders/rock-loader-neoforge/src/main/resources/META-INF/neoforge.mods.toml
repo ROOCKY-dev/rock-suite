@@ -1,0 +1,24 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "Apache-2.0"
+
+[[mods]]
+modId = "rock_suite"
+version = "1.0.0"
+displayName = "ROCK SUITE"
+description = "Cross-platform Minecraft server management platform."
+authors = "ROCK SUITE Founding Developer Team"
+
+[[dependencies.rock_suite]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.11,)"
+ordering = "NONE"
+side = "SERVER"
+
+[[dependencies.rock_suite]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.11,)"
+ordering = "NONE"
+side = "SERVER"

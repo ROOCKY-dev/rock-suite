@@ -1,0 +1,61 @@
+# ROCK SUITE release pipeline (REH §11, §23).
+# Place at .github/workflows/release.yml in the GitHub repository.
+# Triggered by pushing a version tag: v1.2.3 → Maven Central + GitHub Release;
+# pre-release tags (v1.2.3-alpha.1) publish to GitHub Packages only.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Build and publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Full verification
+        run: ./gradlew build
+
+      - name: Publish to GitHub Packages (all builds)
+        run: ./gradlew publishMavenPublicationToGithubPackagesRepository
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Maven Central (stable tags only)
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: ./gradlew publishMavenPublicationToSonatypeRepository
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+
+      - name: Collect release jars
+        run: |
+          mkdir -p dist
+          find . -path '*/build/libs/*.jar' ! -name '*-sources.jar' ! -name 'loader-stubs*' -exec cp {} dist/ \;
+          ls -la dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.jar
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

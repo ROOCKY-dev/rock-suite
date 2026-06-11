@@ -1,0 +1,38 @@
+pluginManagement {
+    includeBuild("tooling/rock-conventions")
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = "rock-suite"
+
+// Platform layer
+include(":rock-api", ":rock-core", ":rock-data")
+project(":rock-api").projectDir = file("platform/rock-api")
+project(":rock-core").projectDir = file("platform/rock-core")
+project(":rock-data").projectDir = file("platform/rock-data")
+
+// Loader layer — the ONLY projects permitted to reference loader APIs
+include(":loader-stubs", ":rock-loader-fabric", ":rock-loader-neoforge")
+project(":loader-stubs").projectDir = file("loaders/loader-stubs")
+project(":rock-loader-fabric").projectDir = file("loaders/rock-loader-fabric")
+project(":rock-loader-neoforge").projectDir = file("loaders/rock-loader-neoforge")
+
+// Examples — composition-root demos and the runtime testbench
+include(":rock-testbench")
+project(":rock-testbench").projectDir = file("examples/rock-testbench")
+
+// Module layer — feature modules, rock-api access only
+include(":rock-permissions", ":rock-claims", ":rock-economy", ":rock-discord")
+project(":rock-permissions").projectDir = file("modules/rock-permissions")
+project(":rock-claims").projectDir = file("modules/rock-claims")
+project(":rock-economy").projectDir = file("modules/rock-economy")
+project(":rock-discord").projectDir = file("modules/rock-discord")

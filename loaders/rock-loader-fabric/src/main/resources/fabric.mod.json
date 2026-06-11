@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "rock_suite",
+  "version": "1.0.0",
+  "name": "ROCK SUITE",
+  "description": "Cross-platform Minecraft server management platform.",
+  "authors": ["ROCK SUITE Founding Developer Team"],
+  "license": "Apache-2.0",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["dev.rock.loader.fabric.RockFabricMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": ">=1.21.11"
+  }
+}

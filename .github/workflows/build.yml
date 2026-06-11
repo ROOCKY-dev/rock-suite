@@ -1,0 +1,74 @@
+# ROCK SUITE main CI pipeline (REH §11).
+# Place at .github/workflows/build.yml in the GitHub repository
+# (kept under infrastructure/ci/ per the REH repository layout).
+name: build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build, test, verify architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile, test, and enforce loader isolation
+        run: ./gradlew build
+
+      - name: Coverage report (JaCoCo)
+        run: ./gradlew jacocoTestReport
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/reports/tests/test'
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: '**/build/reports/jacoco'
+
+      - name: Upload jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: rock-suite-jars
+          path: '**/build/libs/*.jar'
+
+  codeql:
+    name: Security scan (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build for analysis
+        run: ./gradlew assemble
+      - uses: github/codeql-action/analyze@v3

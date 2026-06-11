@@ -1,0 +1,10 @@
+.gradle/
+build/
+**/build/
+!src/**/build/
+.idea/
+*.iml
+.vscode/
+.secrets.env
+*.db
+dist/

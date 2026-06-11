@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java -version)",
+      "Bash(gradle --version)",
+      "Bash(curl -sI --max-time 10 https://repo.maven.apache.org/maven2/)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(gradle wrapper *)",
+      "Bash(gradle :rock-api:build --no-daemon)",
+      "Bash(gradle :rock-core:test --no-daemon)",
+      "Bash(curl -s \"https://search.maven.org/solrsearch/select?q=g:org.flywaydb+AND+a:flyway-database-sqlite&rows=3&wt=json\")",
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/org/flywaydb/flyway-core/10.17.3/flyway-core-10.17.3.pom\" -o /dev/null -w \"flyway-core 10.17.3: %{http_code}\\\\n\")",
+      "Bash(gradle :rock-core:test :rock-data:test --no-daemon)",
+      "Bash(env)",
+      "Bash(getent hosts *)",
+      "Bash(curl -sI --max-time 10 https://repo.maven.apache.org/maven2/org/jdbi/jdbi3-core/3.45.4/jdbi3-core-3.45.4.pom)",
+      "Bash(gradle :rock-core:test :rock-data:test --no-daemon -Dorg.gradle.jvmargs=\"-Xmx2g -Djava.net.preferIPv6Addresses=true\")",
+      "Bash(gradle :rock-loader-fabric:build :rock-loader-neoforge:build :rock-core:test :rock-data:test --no-daemon)",
+      "Bash(gradle :rock-permissions:build --no-daemon)",
+      "Bash",
+      "Edit",
+      "Bash(gradle :rock-claims:build --no-daemon)",
+      "Write"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "code-review-graph",
+    "graphify"
+  ]
+}

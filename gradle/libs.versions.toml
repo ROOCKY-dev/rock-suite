@@ -1,0 +1,33 @@
+[versions]
+guice = "7.0.0"
+jakarta-inject = "2.0.1"
+jdbi = "3.45.4"
+hikaricp = "5.1.0"
+flyway = "10.17.3"
+tomlj = "1.1.1"
+slf4j = "2.0.13"
+sqlite-jdbc = "3.46.0.0"
+postgresql = "42.7.3"
+junit = "5.10.2"
+mockito = "5.12.0"
+
+[libraries]
+guice = { module = "com.google.inject:guice", version.ref = "guice" }
+jakarta-inject = { module = "jakarta.inject:jakarta.inject-api", version.ref = "jakarta-inject" }
+jdbi3-core = { module = "org.jdbi:jdbi3-core", version.ref = "jdbi" }
+hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+tomlj = { module = "org.tomlj:tomlj", version.ref = "tomlj" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+
+[bundles]
+test = ["junit-jupiter", "mockito-core", "mockito-junit"]
