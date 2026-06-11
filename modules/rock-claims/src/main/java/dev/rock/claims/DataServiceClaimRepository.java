@@ -3,6 +3,7 @@ package dev.rock.claims;
 import dev.rock.api.annotations.RockInternal;
 import dev.rock.api.data.DataService;
 import dev.rock.api.data.RowMapper;
+import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.ClaimType;
 import dev.rock.api.domain.RockClaim;
 import dev.rock.api.domain.bounds.BoundsType;
@@ -89,5 +90,54 @@ public final class DataServiceClaimRepository implements ClaimRepository {
     public CompletableFuture<List<RockClaim>> findActiveByWorld(UUID worldId) {
         return data.query("SELECT * FROM rock_claims WHERE world_id = :world AND deleted_at IS NULL",
                 Map.of("world", worldId.toString()), CLAIM_MAPPER);
+    }
+
+    @Override
+    public CompletableFuture<List<RockClaim>> findAllActive() {
+        return data.query("SELECT * FROM rock_claims WHERE deleted_at IS NULL", Map.of(), CLAIM_MAPPER);
+    }
+
+    @Override
+    public CompletableFuture<Void> saveMember(UUID claimId, UUID playerId, ClaimRole role) {
+        return data.inTransaction(tx -> {
+            tx.update("DELETE FROM rock_claim_members WHERE claim_id = :c AND player_id = :p",
+                    Map.of("c", claimId.toString(), "p", playerId.toString()));
+            tx.update("INSERT INTO rock_claim_members (claim_id, player_id, role) VALUES (:c, :p, :r)",
+                    Map.of("c", claimId.toString(), "p", playerId.toString(), "r", role.name()));
+            return null;
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteMember(UUID claimId, UUID playerId) {
+        return data.update("DELETE FROM rock_claim_members WHERE claim_id = :c AND player_id = :p",
+                Map.of("c", claimId.toString(), "p", playerId.toString())).thenApply(rows -> null);
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ClaimRole>> membersOf(UUID claimId) {
+        return data.query("SELECT player_id, role FROM rock_claim_members WHERE claim_id = :c",
+                Map.of("c", claimId.toString()),
+                row -> Map.entry(row.getUuid("player_id"), ClaimRole.valueOf(row.getString("role"))))
+                .thenApply(entries -> {
+                    Map<UUID, ClaimRole> members = new HashMap<>();
+                    entries.forEach(e -> members.put(e.getKey(), e.getValue()));
+                    return members;
+                });
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, Map<UUID, ClaimRole>>> allMembers() {
+        return data.query("SELECT claim_id, player_id, role FROM rock_claim_members", Map.of(), row ->
+                new Object[] {row.getUuid("claim_id"), row.getUuid("player_id"),
+                        ClaimRole.valueOf(row.getString("role"))})
+                .thenApply(rows -> {
+                    Map<UUID, Map<UUID, ClaimRole>> all = new HashMap<>();
+                    for (Object[] row : rows) {
+                        all.computeIfAbsent((UUID) row[0], k -> new HashMap<>())
+                                .put((UUID) row[1], (ClaimRole) row[2]);
+                    }
+                    return all;
+                });
     }
 }

@@ -1,14 +1,17 @@
 package dev.rock.loader.fabric;
 
 import dev.rock.api.config.RockConfig;
+import dev.rock.api.events.world.BlockChangeType;
 import dev.rock.core.bootstrap.PlatformEnvironment;
 import dev.rock.core.config.TomlConfigEngine;
 import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
 import dev.rock.data.RockDataModule;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -56,6 +59,21 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
                 ServerPlayer player = handler.getPlayer();
                 current.sessions().playerLeft(player.getUUID(), player.getScoreboardName());
             }
+        });
+
+        // World-interaction layer (K1): pre-action break check feeds claims
+        // protection and block logging through one platform event.
+        // Fake-player classification lands with the Loom packaging step (the
+        // stub surface has no FakePlayer type).
+        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> {
+            LoaderBootstrap.BootResult current = boot;
+            if (current == null) {
+                return true;
+            }
+            UUID worldId = current.worldEvents().worldId(world.dimensionKey());
+            return current.worldEvents().blockChange(
+                    player.getUUID(), false, worldId, pos.getX(), pos.getY(), pos.getZ(),
+                    BlockChangeType.BREAK, state.registryId(), "minecraft:air");
         });
     }
 

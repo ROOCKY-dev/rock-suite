@@ -38,11 +38,12 @@ public final class LoaderBootstrap {
         List<RockModule> modules = discoverModules(LoaderBootstrap.class.getClassLoader());
         RockPlatform platform = RockPlatform.boot(environment, contributedModules, modules);
         ServiceRegistry services = platform.services();
-        PlayerSessionBridge sessions =
-                new PlayerSessionBridge(services, services.require(EventBus.class));
-        return new BootResult(platform, sessions);
+        EventBus eventBus = services.require(EventBus.class);
+        PlayerSessionBridge sessions = new PlayerSessionBridge(services, eventBus);
+        WorldEventBridge worldEvents = new WorldEventBridge(eventBus);
+        return new BootResult(platform, sessions, worldEvents);
     }
 
-    public record BootResult(RockPlatform platform, PlayerSessionBridge sessions) {
+    public record BootResult(RockPlatform platform, PlayerSessionBridge sessions, WorldEventBridge worldEvents) {
     }
 }

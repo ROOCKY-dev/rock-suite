@@ -31,7 +31,8 @@ include(":rock-testbench")
 project(":rock-testbench").projectDir = file("examples/rock-testbench")
 
 // Module layer — feature modules, rock-api access only
-include(":rock-permissions", ":rock-claims", ":rock-economy", ":rock-discord")
+include(":rock-permissions", ":rock-claims", ":rock-economy", ":rock-discord", ":rock-logging")
+project(":rock-logging").projectDir = file("modules/rock-logging")
 project(":rock-permissions").projectDir = file("modules/rock-permissions")
 project(":rock-claims").projectDir = file("modules/rock-claims")
 project(":rock-economy").projectDir = file("modules/rock-economy")

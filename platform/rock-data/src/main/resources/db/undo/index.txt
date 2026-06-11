@@ -4,3 +4,5 @@ U003__create_claims.sql
 U004__create_economy.sql
 U005__create_punishments_audit.sql
 U006__create_discord_metadata.sql
+U007__create_world_log.sql
+U008__create_claim_members.sql

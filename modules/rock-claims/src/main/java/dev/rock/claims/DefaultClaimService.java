@@ -1,20 +1,24 @@
 package dev.rock.claims;
 
 import dev.rock.api.annotations.RockInternal;
+import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.ClaimType;
 import dev.rock.api.domain.RockClaim;
 import dev.rock.api.domain.bounds.ClaimBounds;
 import dev.rock.api.domain.owner.OwnerReference;
+import dev.rock.api.domain.owner.PlayerOwner;
 import dev.rock.api.event.EventBus;
 import dev.rock.api.events.claim.ClaimCreateEvent;
 import dev.rock.api.events.claim.ClaimCreatedEvent;
 import dev.rock.api.events.claim.ClaimDeletedEvent;
 import dev.rock.api.events.claim.ClaimTransferredEvent;
+import dev.rock.api.lifecycle.LifecycleAware;
 import dev.rock.api.services.ClaimService;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -26,15 +30,29 @@ import java.util.concurrent.CompletableFuture;
  */
 @RockInternal
 @Singleton
-public final class DefaultClaimService implements ClaimService {
+public final class DefaultClaimService implements ClaimService, LifecycleAware {
 
     private final ClaimRepository repository;
     private final EventBus eventBus;
+    private final ClaimIndex index = new ClaimIndex();
 
     @Inject
     public DefaultClaimService(ClaimRepository repository, EventBus eventBus) {
         this.repository = repository;
         this.eventBus = eventBus;
+    }
+
+    @Override
+    public void onEnable() {
+        // Warm the tick-thread-safe index (TRS §3: protection lookups never hit the DB).
+        List<RockClaim> claims = repository.findAllActive().join();
+        Map<UUID, Map<UUID, ClaimRole>> members = repository.allMembers().join();
+        index.load(claims, members);
+    }
+
+    @Override
+    public void onDisable() {
+        index.load(List.of(), Map.of());
     }
 
     /** Raised when a claim operation is vetoed or invalid. */
@@ -65,6 +83,7 @@ public final class DefaultClaimService implements ClaimService {
                         "Bounds overlap existing claim '" + overlap.get().displayName() + "'"));
             }
             return repository.save(claim).thenApply(v -> {
+                index.put(claim);
                 eventBus.publish(new ClaimCreatedEvent(claim));
                 return claim;
             });
@@ -83,9 +102,7 @@ public final class DefaultClaimService implements ClaimService {
 
     @Override
     public CompletableFuture<Optional<RockClaim>> claimAt(UUID worldId, int x, int y, int z) {
-        return repository.findActiveByWorld(worldId).thenApply(claims -> claims.stream()
-                .filter(claim -> claim.bounds().contains(x, y, z))
-                .findFirst());
+        return CompletableFuture.completedFuture(index.claimAt(worldId, x, y, z));
     }
 
     @Override
@@ -98,6 +115,7 @@ public final class DefaultClaimService implements ClaimService {
                     claim.id(), claim.displayName(), newOwner, claim.type(), claim.bounds(),
                     claim.created(), Instant.now(), null);
             return repository.save(transferred).thenApply(v -> {
+                index.put(transferred);
                 eventBus.publish(new ClaimTransferredEvent(transferred, previousOwner));
                 return transferred;
             });
@@ -113,7 +131,51 @@ public final class DefaultClaimService implements ClaimService {
             RockClaim deleted = new RockClaim(
                     claim.id(), claim.displayName(), claim.owner(), claim.type(), claim.bounds(),
                     claim.created(), Instant.now(), Instant.now());
-            return repository.save(deleted).thenRun(() -> eventBus.publish(new ClaimDeletedEvent(deleted)));
+            return repository.save(deleted).thenRun(() -> {
+                index.remove(deleted);
+                eventBus.publish(new ClaimDeletedEvent(deleted));
+            });
         });
+    }
+
+    // --- Trust roles (1.1) -------------------------------------------------
+
+    @Override
+    public CompletableFuture<Void> trust(UUID claimId, UUID playerId, ClaimRole role) {
+        return repository.findById(claimId).thenCompose(found -> {
+            found.filter(RockClaim::active).orElseThrow(
+                    () -> new ClaimRejectedException("No active claim with id " + claimId));
+            return repository.saveMember(claimId, playerId, role)
+                    .thenRun(() -> index.putMember(claimId, playerId, role));
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> untrust(UUID claimId, UUID playerId) {
+        return repository.deleteMember(claimId, playerId)
+                .thenRun(() -> index.removeMember(claimId, playerId));
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, ClaimRole>> membersOf(UUID claimId) {
+        return repository.membersOf(claimId);
+    }
+
+    // --- Tick-thread-safe cached lookups (1.1) ------------------------------
+
+    @Override
+    public Optional<RockClaim> claimAtCached(UUID worldId, int x, int y, int z) {
+        return index.claimAt(worldId, x, y, z);
+    }
+
+    @Override
+    public Optional<ClaimRole> effectiveRole(RockClaim claim, UUID playerId) {
+        if (playerId == null) {
+            return Optional.empty();
+        }
+        if (claim.owner() instanceof PlayerOwner owner && owner.id().equals(playerId)) {
+            return Optional.of(ClaimRole.MANAGER);
+        }
+        return index.memberRole(claim.id(), playerId);
     }
 }

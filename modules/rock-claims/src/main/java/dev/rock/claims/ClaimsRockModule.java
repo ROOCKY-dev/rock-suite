@@ -13,7 +13,7 @@ public final class ClaimsRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-claims", "Rock Claims", "1.0.0", "1.0",
+                "rock-claims", "Rock Claims", "1.1.0", "1.1",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }
@@ -27,6 +27,7 @@ public final class ClaimsRockModule implements RockModule {
                 bind(DataServiceClaimRepository.class).in(Scopes.SINGLETON);
                 bind(ClaimService.class).to(DefaultClaimService.class).in(Scopes.SINGLETON);
                 bind(DefaultClaimService.class).in(Scopes.SINGLETON);
+                bind(ClaimProtectionListener.class).in(Scopes.SINGLETON);
             }
         };
     }

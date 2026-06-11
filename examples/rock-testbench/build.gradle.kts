@@ -20,5 +20,6 @@ dependencies {
     runtimeOnly(project(":rock-claims"))
     runtimeOnly(project(":rock-economy"))
     runtimeOnly(project(":rock-discord"))
+    runtimeOnly(project(":rock-logging"))
     runtimeOnly(libs.slf4j.simple)
 }

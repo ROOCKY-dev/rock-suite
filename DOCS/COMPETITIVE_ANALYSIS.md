@@ -1,138 +1,196 @@
-# ROCK SUITE — Competitive Analysis
+# ROCK SUITE — Competitive Analysis (v2)
 
 **Status:** Working document — informs MODULE_ROADMAP.md
-**Method:** Structural review of each competitor's open-source tree (shallow clones,
-inspection only — no GPL code enters this Apache-2.0 codebase). Closed-source
-competitors (Lands, premium claim plugins) assessed from public documentation.
+**Method:** Structural review of competitors' open-source trees (shallow clones,
+inspection only — no GPL/ARR code enters this Apache-2.0 codebase). Closed-source
+competitors assessed from public documentation.
+**v2 change:** added the analysis that actually matters first — the
+**Fabric/NeoForge-native ecosystem** ROCK launches into, including the
+"server admin survival kit" no admin lives without.
 
 ---
 
-## 1. The competitive landscape in one table
+# Part I — The home turf: Fabric/NeoForge-native competitors
 
-| Domain | Incumbent | License | Maturity | Their moat | Their weakness |
-|---|---|---|---|---|---|
-| Permissions | **LuckPerms** | MIT | Extremely high | Contexts, web editor, cross-server sync, every platform | Standalone product; no shared data model with anything else |
-| Claims | **GriefPrevention** | MIT-ish | High | Dead-simple UX, claim-block economy, visualization | Bukkit-only, aging codebase, no towns/nations layer |
-| Claims (org) | **Towny** | Custom | Very high | Towns→Nations government layer, plot economy, war addons | Sprawling config, Bukkit-only, monolithic |
-| Claims (paid) | **Lands** | Closed | High | Polished GUI, wars, rentals, taxes, map integrations | Closed source, paid, Bukkit-only |
-| Economy | **EssentialsX + Vault** | GPL | Very high | 167 commands of utility gravity; Vault is the de-facto economy API | Economy itself is primitive (flat balances, no transactions/audit) |
-| Discord | **DiscordSRV** | GPL | Very high | Bidirectional chat, console channel, alerts engine, linking, voice module | JDA-heavy, Bukkit-centric, config sprawl |
+These are the mods ROCK displaces (or must interoperate with) on its Tier-1
+platforms. This is the primary battlefield; the Bukkit incumbents in Part II
+are the long game.
 
-**The structural gap ROCK attacks:** every one of these is a silo with its own
-storage, config, permission checks, and integration bridges. None of them share a
-data model. LuckPerms runs on Fabric/NeoForge, but GriefPrevention, Towny,
-EssentialsX, and DiscordSRV are effectively Bukkit-only — **on modern modded
-servers (Fabric/NeoForge) the "full management stack" simply does not exist.**
-That is ROCK's beachhead.
+## 1. The modded-server admin survival kit
+
+What a Fabric/NeoForge admin actually installs today, and where ROCK stands:
+
+| Need | Today's pick | ROCK answer | Status |
+|---|---|---|---|
+| Permissions | **LuckPerms (Fabric/NeoForge)** or **FTB Ranks** | rock-permissions | ✅ v1, gaps below |
+| Permission API hook | **fabric-permissions-api** (every mod checks it) | provider bridge | ❌ **critical gap** |
+| Claims + protection | **FTB Chunks**, **Flan**, **OPAC**, **Cadmus** | rock-claims | ⚠️ storage only — no protection enforcement yet |
+| Block logging / rollback | **Ledger** (Fabric), CoreProtect (Bukkit ref.) | — | ❌ **the #1 must-have, missing** |
+| Teams / parties | **FTB Teams**, **Argonauts** | — | ❌ missing (claims/economy already model group owners) |
+| Homes/warps/TPA/kits | **FTB Essentials**, **EssentialCommands** | — | ❌ missing |
+| Discord bridge | **DiscordIntegration** (multi-loader) | rock-discord | ⚠️ no chat bridge yet |
+| Web map | **BlueMap / Dynmap / squaremap** | overlay integration | ❌ missing |
+| Profiler | **spark** | out of scope (integrate, don't compete) | — |
+| World pregen | **Chunky** | out of scope | — |
+| Backups | ad-hoc scripts / FTB Backups | rock-backup (TRS §14 requires it) | ❌ missing |
+
+**Read of the table:** ROCK v1 proves the platform, but an admin today still
+needs 6+ third-party mods. Each row we fill converts directly into adoption;
+the rows marked "out of scope" (spark, Chunky) we should *detect and
+integrate with*, never duplicate.
+
+## 2. FTB stack (Chunks + Ranks + Teams + Essentials)
+
+**Observed structure:** the closest thing to ROCK that exists — a suite with
+shared team identity, but **without** a shared data layer or platform: each mod
+ships its own storage (NBT/JSON files), its own config, its own API.
+
+- **FTB Chunks:** chunk claims + force-loading, full **client-side map +
+  minimap + waypoints GUI** (huge part of its appeal), claim API with
+  fabric/neoforge adapters. Claims belong to FTB Teams, not players.
+- **FTB Ranks:** condition-based ranks — `DimensionCondition`, `OPCondition`,
+  `CreativeModeCondition`, `FakePlayerCondition`, composable `And/Or/Not`
+  conditions; typed permission values (boolean/number/string, e.g.
+  `ftbessentials.homes.max: 5`); chat `MessageDecorator` (prefix/format).
+- **FTB Teams:** party layer (allies, member ranks, team chat) underpinning Chunks.
+- **FTB Essentials:** homes/warps/TPA/kits/nick/mute/speed/near/leaderboards/
+  virtual invsee — the QoL command set admins expect.
+
+**Lessons to adopt:** condition-based permissions (= our contexts, but
+composable), **numeric permission values** (limits like `max-homes` belong in
+the permission system, not per-module config), fake-player handling (modded
+servers are full of machine-controlled fake players — every protection and
+permission check must classify them).
+
+**Their weakness:** flat-file storage, no audit trail, no cross-mod
+transactions, no web surface, team≠player identity confusion. ROCK's unified
+domain model beats this structurally.
+
+## 3. Flan (claims, Fabric/Forge)
+
+**Observed:** block-precise cuboid claims (`ClaimBox`), per-claim permission
+groups with player assignments, **`ObjectToPermissionMap`** — any registry
+object (block/item/entity) maps to a generated permission, so new modded
+blocks are automatically protectable; per-claim "allow lists" for specific
+registry entries; global per-dimension claims; particle boundary display;
+**`OtherClaimingModCheck`** — it actively detects competing claim mods.
+
+**Lessons:** block-precision matters on modded servers (machines!), and
+protection must be **registry-driven** so unknown modded blocks/items are
+covered by default-deny categories rather than hardcoded lists. Our
+`BoundsType.BLOCK_CUBOID` future-slot is validated.
+
+## 4. Open Parties and Claims (OPAC)
+
+**Observed:** party system + claims with **claim expiration**, chunk
+force-loading as a claim feature, deep `protection/` package (per-action
+granularity), per-player claim storage with NBT serialization, request-based
+async claim operations. Designed for very large servers; syncs with Xaero's
+map for in-map claim display.
+
+**Lessons:** claim expiration tied to player activity is table stakes;
+force-loading is a claims-adjacent feature admins expect; map-mod sync
+(Xaero's/JourneyMap) is the modded equivalent of BlueMap overlays.
+
+## 5. Cadmus + Prometheus + Argonauts (Team Resourceful stack)
+
+**Observed:** the *newest* integrated attempt — Cadmus (claims with a
+**flag system**: per-claim toggleable rules), Prometheus (roles/permissions
+with **client GUI for editing roles + options**), Argonauts (guilds/parties).
+Shared `api/` conventions across the three, but again: separate mods, separate
+storage, no ledger/audit.
+
+**Lessons:** claim **flags** (pvp on/off, mob-griefing, explosions…) are the
+modern UX for claim rules; an in-game GUI for rank editing is a
+differentiator worth copying (we additionally get the web dashboard).
+
+## 6. Ledger (Fabric) + CoreProtect (Bukkit reference) — block logging
+
+**Ledger observed:** Kotlin, registry of `ActionType`s (block break/place/
+change, entity kill/change, item insert/remove/pickup/drop — i.e. **container
+theft tracking**), `ActionSearchParams` query model, **rollback preview**,
+paginated search commands, SQLite via Exposed.
+
+**CoreProtect observed (the gold standard):** dedicated **consumer thread** —
+all writes go to an in-memory queue drained in async batches (survives write
+bursts); inspector mode (click a block → history); lookup/rollback/restore
+with radius/time/user/action filters; purge; WorldEdit integration; per-action
+normalized tables.
+
+**Lessons (this is our rock-logging blueprint):** async batched consumer
+(maps perfectly onto our `DataService.batch`), action-type registry,
+inspector-on-click UX, preview-then-apply rollback, time/radius/actor/action
+query grammar. **No competitor links logs to a unified identity/audit/claims
+model — we can answer "who griefed this claim and roll it back" in one query.**
+
+## 7. fabric-permissions-api (lucko) — the integration keystone
+
+**Observed:** tiny API — `Permissions.check(source, node, default)`,
+`PermissionCheckEvent`, offline checks, options (string meta). **Every serious
+Fabric mod routes its permission checks through this.** If rock-permissions
+registers a `PermissionCheckEvent` provider, *every mod on the server*
+instantly uses ROCK permissions with zero integration work. NeoForge has the
+equivalent `PermissionAPI` (nodes registered at startup).
+
+**Action:** loader adapters MUST ship these providers. This single bridge is
+worth more adoption than any feature.
+
+## 8. DiscordIntegration (ErdbeerbaerLP)
+
+**Observed:** the multi-loader (fabric/forge/neoforge/quilt) Discord bridge —
+chat both ways via mixins, linking, command relay, compatibility shims for
+chat-format mods (StyledChat). Confirms rock-discord's parity list (chat
+bridge, linking flow) applies on modded too, and that chat events need a
+first-class platform contract (mixin-free for us: the loader adapter owns it).
 
 ---
 
-## 2. LuckPerms (vs rock-permissions)
+# Part II — Bukkit incumbents (the long game)
 
-**Architecture observed:** `api/` + `common/` core with thin per-platform adapters
-(bukkit, bungee, fabric, forge, neoforge, sponge, velocity, nukkit, standalone) —
-structurally the same play ROCK is making, proving the model scales.
-`common/` packages that matter: `calculator` (permission resolution chain),
-`cacheddata` (per-player resolved cache), `context` (server/world/conditional
-scoping), `verbose` (live check debugging), `webeditor`, `actionlog`,
-`messaging` (Redis/pluginmsg cross-server sync), `bulkupdate`, `treeview`,
-`metastacking` (prefix/suffix), `track` (promotion ladders), `extension`.
+*(unchanged from v1 — full detail retained below)*
 
-**Table-stakes features we lack:** contexts (world/server-scoped permissions),
-prefix/suffix meta, tracks/ladders, temporary permissions, verbose debugging,
-bulk edit, web editor, cross-server sync.
+| Domain | Incumbent | Their moat | Their weakness |
+|---|---|---|---|
+| Permissions | **LuckPerms** | Contexts, web editor, cross-server sync, every platform | No shared data model with anything else |
+| Claims | **GriefPrevention** | Simple UX, claim-block accrual, visualization | Bukkit-only, aging |
+| Claims (org) | **Towny** | Towns→Nations government, plot economy | Sprawling, Bukkit-only |
+| Claims (paid) | **Lands** | Polished GUI, rentals, taxes, wars | Closed, paid, Bukkit-only |
+| Economy | **EssentialsX + Vault** | 167-command gravity; Vault is the de-facto API | Flat balances, no ledger/audit |
+| Discord | **DiscordSRV** | Bidirectional chat, alerts engine, linking | Hook-per-plugin integration model |
 
-**Where ROCK can win:** LuckPerms knows nothing about claims, economy, or
-Discord. ROCK permissions are evaluated against the *same* identity record that
-owns claims and accounts — e.g. "claim members get `rock.claims.member.*`
-inside their claim's context" is native for us and a bridge-plugin nightmare
-for them. Their own `RockGroup`-equivalent has no audit trail; ours writes
-`RockAuditEntry` rows for free.
-
-## 3. GriefPrevention + Towny + Lands (vs rock-claims)
-
-**GriefPrevention observed:** claim-block accrual (play time → claimable area),
-boundary visualization, automatic claim extension, expiration/cleanup of
-inactive claims, resize events, trust levels (Access/Container/Build/Manager),
-claim inspection, sub-claims, pre/post events for everything.
-
-**Towny observed:** `object/` model is a full government stack — Resident, Town,
-Nation, District, PlotGroup, jail, spawn points, invites, economy accounts per
-town (`EconomyAccount`, `Government`), metadata API, HUDs/map rendering,
-status screens. The lesson: organizational claims (town → nation hierarchy)
-plus plot-level economy (taxes, plot rent) is what retains large communities.
-
-**Lands (closed, from docs):** GUI-first management, land rentals/taxes, wars,
-role-based member permissions per claim, BlueMap/Dynmap/squaremap overlays.
-
-**Table-stakes we lack:** per-claim member roles/trust levels, claim
-visualization in-world, claim-block/size economy, sub-claims, expiration of
-abandoned claims, taxes/rent, map plugin overlays.
-
-**Where ROCK can win:** our `OwnerReference` + `ClaimType` (PLAYER/TOWN/FACTION/
-NATION) already models what Towny bolts on; our claims share the economy
-ledger (town treasury = `RockEconomyAccount` with `ClaimOwner`), so taxes are a
-scheduled `EconomyService.transfer` with full transaction history — Towny's
-economy has no audit trail at all. And none of the three run on Fabric/NeoForge.
-
-## 4. EssentialsX + Vault (vs rock-economy)
-
-**Observed:** EssentialsX economy is flat per-player balances + 167 utility
-commands; Vault is the lingua-franca API every shop plugin codes against.
-EssentialsDiscord/DiscordLink ship as separate modules.
-
-**Table-stakes we lack:** player commands (`/pay`, `/balance`, `/baltop`),
-admin grants, configurable currency formatting, shop integration surface.
-
-**Where ROCK can win:** we already have what they fundamentally lack — a real
-double-entry-style ledger: `RockTransaction` with PENDING/COMPLETED/FAILED/
-REVERSED states, linked reversals, non-player accounts (town treasuries,
-server sink), and atomic transfers. Their model cannot answer "where did this
-money come from" — ours answers it by design. A Vault-bridge (on Paper, later)
-or a published `EconomyService` makes every shop plugin a free integration.
-
-## 5. DiscordSRV (vs rock-discord)
-
-**Observed:** bidirectional chat bridge, console channel, account linking with
-`requirelink` gating (kick unlinked players), ban sync, death/advancement
-messages, an **alerts engine** (config-defined triggers → Discord embeds),
-voice proximity module, extensive hook ecosystem.
-
-**Table-stakes we lack:** chat bridge (both directions), join/leave/death
-embeds, slash commands on the Discord side, require-link enforcement, role
-sync (Discord role ↔ ROCK group).
-
-**Where ROCK can win:** DiscordSRV integrates *outward* via fragile hooks into
-each plugin. ROCK's Discord module subscribes to the platform EventBus, so
-every domain event (claims, economy, punishments, audit) is broadcastable with
-zero per-plugin glue. Role sync maps Discord roles to `RockGroup`s natively.
-Our stdlib REST transport keeps the jar tiny; a gateway (WebSocket) transport
-slots behind the existing `DiscordGateway` interface when slash commands and
-presence are needed.
+Key LuckPerms features to reach parity with: contexts (server/world),
+prefix/suffix meta stacking, tracks/ladders, temporary nodes, verbose
+debugger, web editor, bulk update, cross-server messaging sync.
+GriefPrevention: trust levels (Access/Container/Build/Manager), claim-block
+accrual, visualization, expiration. Towny: government hierarchy, plot
+economy, jail, invites. DiscordSRV: alerts engine, console channel,
+require-link, role sync.
 
 ---
 
-## 6. Strategic conclusions
+# Part III — Strategic conclusions (v2)
 
-1. **Fabric/NeoForge first is correct.** Four of five incumbents don't run
-   there. ROCK should be *the* management stack for modded servers before
-   fighting on Paper (where the incumbents are entrenched; a Paper loader
-   adapter is the Phase-2 land grab once parity exists).
-2. **Integration is the product.** Feature-by-feature parity with five mature
-   projects is unwinnable in the short term; "one identity, one ledger, one
-   audit trail, one config, one dashboard" is unmatchable by any of them
-   individually.
-3. **Migration tooling is non-negotiable** (Charter already says so): importers
-   for LuckPerms (users/groups/tracks), GriefPrevention (claims),
-   Towny (towns/plots → TOWN claims), EssentialsX (balances) remove the
-   switching cost that protects every incumbent.
-4. **The web dashboard is the differentiator with no real competitor** —
-   LuckPerms' web editor is the only comparable surface and covers
-   permissions only. Ship it in 1.x, not "someday".
-5. **Adopt their best ideas, not their code:** LuckPerms' contexts + verbose
-   debugger, GriefPrevention's claim-block accrual + visualization, Towny's
-   government hierarchy, DiscordSRV's alerts engine. All are re-implementable
-   cleanly on the ROCK event/data model (and our licenses must stay clean:
-   nothing GPL-derived may be copied in).
+1. **The modded ecosystem has suites but no platform.** FTB and Team
+   Resourceful both prove demand for integrated stacks — and both stop at
+   flat files, no audit, no ledger, no web. ROCK's data platform is the
+   structural win; their feature lists are our parity checklist.
+2. **Two integration keystones decide Fabric adoption:** a
+   fabric-permissions-api provider (every mod's checks route to ROCK) and
+   protection events that respect modded reality (fake players,
+   registry-driven block/item categories).
+3. **Block logging is the wedge module.** CoreProtect/Ledger is the one mod
+   *every* admin installs first. A rock-logging module with
+   claims-aware queries ("rollback this claim") + unified identity is an
+   immediately superior product and showcases the whole platform.
+4. **Teams must be first-class.** FTB Teams/Argonauts/OPAC parties all exist
+   because claims & chat & maps need group identity. Our `OwnerReference`
+   already models it (`GroupOwner`) — a rock-teams module turns three
+   incumbent mods into one ROCK module.
+5. **Essentials-QoL is cheap adoption surface.** Homes/warps/TPA/kits on the
+   existing command framework + permissions numeric limits.
+6. **Integrate, don't fight, the observability/map layer:** spark, BlueMap/
+   Xaero's — detect and feed them (claim overlays, metrics export).
+7. **Migration importers now include modded sources:** FTB Chunks/Ranks,
+   Flan, OPAC, Ledger (log history), plus the Bukkit set from v1.
 
-Per-module actionable backlogs: see **MODULE_ROADMAP.md**.
+Actionable backlog: **MODULE_ROADMAP.md** (v2).

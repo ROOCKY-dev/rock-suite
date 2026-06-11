@@ -20,6 +20,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 class MigrationRollbackRunnerTest {
 
+    /** Latest migration version in db/migration — bump when adding V###s. */
+    private static final int TIP = 8;
+
     @TempDir
     Path tempDir;
 
@@ -64,29 +67,36 @@ class MigrationRollbackRunnerTest {
     }
 
     @Test
-    void rollbackRemovesTablesAndHistoryRow() throws Exception {
-        assertTrue(tables().contains("rock_metadata"));
+    void rollbackOfTipRemovesTablesAndHistoryRow() throws Exception {
+        assertTrue(tables().contains("rock_claim_members"));
         int before = historyCount();
 
-        rollback.rollback(6);
+        rollback.rollback(TIP);
 
-        assertFalse(tables().contains("rock_metadata"));
-        assertFalse(tables().contains("rock_discord_links"));
+        assertFalse(tables().contains("rock_claim_members"));
         assertEquals(before - 1, historyCount());
         // Earlier migrations untouched.
         assertTrue(tables().contains("rock_players"));
+        assertTrue(tables().contains("rock_world_log"));
     }
 
     @Test
     void rollbackThenReMigrateReachesSameSchema() throws Exception {
-        rollback.rollback(6);
-        rollback.rollback(5);
-        assertFalse(tables().contains("rock_audit"));
+        rollback.rollback(TIP);
+        rollback.rollback(TIP - 1);
+        assertFalse(tables().contains("rock_world_log"));
 
         new DataMigrator(dataSource).migrate();
 
-        assertTrue(tables().contains("rock_audit"));
-        assertTrue(tables().contains("rock_metadata"));
+        assertTrue(tables().contains("rock_world_log"));
+        assertTrue(tables().contains("rock_claim_members"));
+    }
+
+    @Test
+    void rollingBackANonTipVersionIsRejected() throws Exception {
+        // Undoing a middle migration would corrupt Flyway's history order.
+        assertThrows(IllegalStateException.class, () -> rollback.rollback(5));
+        assertTrue(tables().contains("rock_metadata"), "schema must be untouched after rejection");
     }
 
     @Test

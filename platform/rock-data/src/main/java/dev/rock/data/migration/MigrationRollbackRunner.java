@@ -37,11 +37,20 @@ public final class MigrationRollbackRunner {
 
     /**
      * Rolls back a single migration version (e.g. 6 → executes U006 and removes
-     * the matching flyway_schema_history row).
+     * the matching flyway_schema_history row). Only the most recently applied
+     * version may be rolled back — undoing a middle migration would leave the
+     * schema history out of order and fail Flyway validation.
      */
     public void rollback(int version) {
         String paddedVersion = String.format("%03d", version);
         String script = readUndoScript(paddedVersion);
+
+        int tip = appliedTip();
+        if (version != tip) {
+            throw new IllegalStateException(
+                    "Only the latest applied migration (V" + String.format("%03d", tip)
+                            + ") can be rolled back; requested V" + paddedVersion);
+        }
 
         try (Connection connection = dataSource.getConnection()) {
             boolean previousAutoCommit = connection.getAutoCommit();
@@ -69,6 +78,25 @@ public final class MigrationRollbackRunner {
             }
         } catch (SQLException e) {
             throw new IllegalStateException("Could not open connection for rollback", e);
+        }
+    }
+
+    /** Highest applied versioned migration, from flyway_schema_history. */
+    private int appliedTip() {
+        try (Connection connection = dataSource.getConnection();
+                Statement statement = connection.createStatement();
+                var rs = statement.executeQuery(
+                        "SELECT version FROM flyway_schema_history WHERE version IS NOT NULL AND success = 1")) {
+            int tip = -1;
+            while (rs.next()) {
+                tip = Math.max(tip, Integer.parseInt(rs.getString(1)));
+            }
+            if (tip < 0) {
+                throw new IllegalStateException("No applied migrations to roll back");
+            }
+            return tip;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not read flyway_schema_history", e);
         }
     }
 

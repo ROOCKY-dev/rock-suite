@@ -1,126 +1,134 @@
-# ROCK SUITE — Module Improvement & Expansion Roadmap
+# ROCK SUITE — Module Improvement & Expansion Roadmap (v2)
 
-**Status:** Planning document — work modules one by one, in this order.
-**Basis:** COMPETITIVE_ANALYSIS.md. Each item is sized S/M/L and tagged
-[parity] (incumbents have it, we must) or [edge] (only ROCK can do it well).
-
-**Ordering rationale:** permissions underpins everything (REH §19) → claims is
-the flagship → economy powers claims taxes/rent → discord showcases the event
-bus → then platform-level multipliers (web, migration, Paper loader).
+**Status:** Planning document. The DOCS are guardrails, not limits — ROCK is a
+modular, abstracted server-management platform; the module portfolio grows
+wherever server admins currently need a third-party mod.
+**Basis:** COMPETITIVE_ANALYSIS.md v2 (Fabric/NeoForge-native + Bukkit incumbents).
+Sizes S/M/L; [parity] = incumbents have it; [edge] = only ROCK can do it well.
 
 ---
 
-## 1. rock-permissions (work on first)
+## 0. Platform keystones (unlock everything else)
 
-### Improvements
-- **P1 [parity, M] Contexts** — scope any permission to `world=`, `server=`, or
-  `claim=` (the last one is our [edge]: LuckPerms cannot scope to a claim).
-  Schema: add nullable `context` column to both permission tables; evaluation
-  cache keyed by (subject, context).
-- **P1 [parity, S] Meta on groups** — prefix/suffix/weight per group
-  (`rock_group_meta` table), exposed via `PermissionService.metaOf(player)`.
-- **P1 [parity, M] Temporary permissions/ranks** — `expires` column + lazy
-  expiry on read + sweep task. Powers paid-rank servers; trivially feeds
-  `RockAuditEntry`.
-- **P2 [parity, M] Tracks (promotion ladders)** — ordered group sequences with
-  `/rock perms promote <player> <track>`; emits `RankAssignedEvent`.
-- **P2 [parity, S] Verbose mode** — `/rock perms verbose on` streams every
-  `check()` for a target player with the resolution path (which group/wildcard
-  matched). Cheap to build: the calculator already walks an explainable chain.
-- **P2 [edge, S] Audit every mutation** — wire grant/deny/group ops into
-  `AuditService` (table already exists; LuckPerms' actionlog equivalent for free).
-- **P3 [parity, L] Cross-server sync** — pub/sub invalidation (Redis or
-  Postgres LISTEN/NOTIFY) so multi-server networks share one permission state.
+- **K1 [edge, M] World-interaction event layer** — cancellable
+  `BlockChangeEvent` / `PlayerInteractEvent` contracts in rock-api + loader
+  mappings, with **fake-player classification** (modded reality). This single
+  layer powers claims protection, block logging, and moderation. *(shipping in v1.1.0)*
+- **K2 [parity, M] fabric-permissions-api provider + NeoForge PermissionAPI
+  provider** — every mod's permission checks route into rock-permissions with
+  zero integration work. The highest-ROI bridge on modded.
+- **K3 [parity, L] Real loader packaging** — Loom + ModDevGradle builds
+  replacing loader-stubs at release; unblocks on-server smoke tests.
+- **K4 [edge, M] WorldMutator abstraction** — loader-provided block get/set
+  for rollback/restore operations. *(shipping in v1.1.0)*
 
-### Expansions
-- **Default groups & first-join assignment** (config: `default-group = "Member"`).
-- **Per-claim member permission profiles** — bridges into rock-claims roles (below).
+## 1. rock-permissions
+- **P1 [parity, M] Contexts as composable conditions** — world/dimension/
+  server/creative/claim scoping; FTB Ranks-style And/Or/Not composition.
+  `claim=` context is our [edge].
+- **P1 [parity, S] Typed permission values** — numeric/string nodes
+  (`rock.essentials.homes.max = 5`) so module limits live in one system.
+- **P1 [parity, S] Prefix/suffix/weight meta** on groups.
+- **P1 [parity, M] Temporary permissions/ranks** (expiry + sweep).
+- **P2 [parity, M] Tracks/promotion ladders**; **P2 [parity, S] verbose
+  debugger**; **P2 [edge, S] audit every mutation** (AuditService wiring).
+- **P3 [parity, L] Cross-server sync** (pub/sub invalidation).
 
-## 2. rock-claims (flagship — work on second)
+## 2. rock-claims
+- **P1 [parity, M] Trust roles** — ACCESS/CONTAINER/BUILD/MANAGER members
+  per claim. *(shipping in v1.1.0)*
+- **P1 [parity, M] Protection enforcement** — listener on the K1 event layer,
+  in-memory claim index for tick-thread-safe lookups. *(shipping in v1.1.0)*
+- **P1 [parity, M] Claim flags** — Cadmus-style toggles (pvp, explosions,
+  mob-griefing, fake-player-allow) per claim.
+- **P2 [parity, M] Registry-driven protection categories** — Flan's lesson:
+  unknown modded blocks/items fall into default-deny categories.
+- **P2 [parity, S] Claim-block accrual**, **[parity, M] visualization**
+  (particles), **[parity, M] sub-claims**, **[parity, S] force-loading**.
+- **P2 [edge, M] Taxes/upkeep** via EconomyService (fully audited).
+- **P3 [parity, M] Expiration of inactive claims** (OPAC model),
+  **[parity, M] map-mod sync** (Xaero's/BlueMap overlays).
+- **P3 [edge, L] Towns & Nations** — government layer on TOWN/NATION types.
 
-### Improvements
-- **P1 [parity, M] Trust levels / member roles** — per-claim members with
-  ACCESS / CONTAINER / BUILD / MANAGER roles (GriefPrevention's proven model);
-  `rock_claim_members` table; `ClaimService.trust(claimId, player, role)`.
-- **P1 [parity, M] Protection enforcement** — the loader adapters currently map
-  join/leave only; add block-break/place/interact/explosion bridge events so
-  claims actually protect. Needs `BlockChangeEvent` + `InteractEvent` contracts
-  in rock-api and per-loader mappings (the real Loom/ModDev packaging work).
-- **P1 [parity, S] Claim-block accrual** — play-time grants claimable chunks
-  (GriefPrevention's retention engine); store accrual in `rock_metadata`.
-- **P2 [parity, M] In-world visualization** — boundary particles/ghost blocks on
-  `/rock claims show`; abstract `BoundaryRenderer` per loader.
-- **P2 [parity, M] Sub-claims** — `parentId` on `RockClaim` (ClaimOwner already
-  models it); per-subclaim role overrides → Towny plot equivalent.
-- **P2 [edge, M] Taxes & upkeep** — scheduled `EconomyService.transfer` from
-  claim treasury to server sink; delinquency → claim expiry pipeline. Fully
-  audited, unlike every incumbent.
-- **P3 [parity, M] Expiration/cleanup** — auto-expire claims of players inactive
-  N days (soft-delete + grace period; `lastSeen` already tracked).
-- **P3 [parity, M] Map overlays** — BlueMap/squaremap render of `rock_claims`
-  (read-only, server-side companion).
+## 3. rock-economy
+- **P1 [parity, S] Player commands** (/rock pay, balance, baltop) +
+  currency formatting config.
+- **P1 [edge, S] Admin grants as SYSTEM transactions** (no invisible money).
+- **P2 [parity, M] Multi-currency**; **P2 [edge, M] idempotent transfers**.
+- **P3 [parity, M] Shop surface** (published artifact + Vault bridge on Paper).
 
-### Expansions
-- **Towns & Nations (L)** — promote TOWN/NATION ClaimTypes to first-class
-  government: membership, ranks via per-claim groups, town treasury, invites.
-  This is the Towny-displacement play and justifies the whole platform.
+## 4. rock-discord
+- **P1 [parity, M] Chat bridge** (needs PlayerChatEvent contract + loader map).
+- **P1 [edge, S] Domain-event embeds** (claims/economy/punishments → channels).
+- **P1 [parity, M] Link verification + require-link mode.**
+- **P2 [parity, M] Gateway transport + slash commands; role↔group sync.**
+- **P3 [parity, S] Console channel; ban sync.**
 
-## 3. rock-economy (work on third)
+## 5. NEW MODULES (portfolio expansion)
 
-### Improvements
-- **P1 [parity, S] Player commands** — `/rock pay`, `/rock balance`,
-  `/rock baltop` on the existing CommandService; permission-gated.
-- **P1 [parity, S] Currency formatting & config** — symbol, decimals, starting
-  balance (config engine already supports live reload).
-- **P1 [edge, S] Admin grants/sinks as transactions** — `/rock eco give|take`
-  recorded as SYSTEM-owner transfers; zero invisible money creation.
-- **P2 [parity, M] Multi-currency** — `currency` column on accounts +
-  transactions; gems/votes/event-points without a second plugin.
-- **P2 [edge, M] Idempotent transfer API** — client-supplied idempotency key on
-  `transfer()` so retries can't double-spend (no incumbent has this).
-- **P3 [parity, M] Shop integration surface** — publish a stable
-  `EconomyService` artifact + (Phase 2, Paper) a Vault bridge so the entire
-  shop-plugin ecosystem works against ROCK unmodified.
-- **P3 [edge, M] Interest/decay policies** — scheduled balance policies with
-  full transaction trails (server-economy inflation control).
+### rock-logging — block/container logging & rollback ⭐ the wedge module
+*(core shipping in v1.1.0)* Competitors: CoreProtect (reference), Ledger.
+- **P1** Action log on the K1 event layer: block break/place with actor,
+  position, before/after states; async **batched consumer** (CoreProtect's
+  queue model on our DataService.batch).
+- **P1** Query grammar: time window / actor / radius / action / world.
+- **P1** Rollback & restore via WorldMutator, **rolled-back flag** kept (re-rollbackable).
+- **P2** Container item-flow tracking (Ledger's item insert/remove actions);
+  inspector mode (`/rock log inspect` — click a block, see history);
+  rollback **preview** before apply.
+- **P2 [edge]** Claims-aware queries: "rollback everything non-members did in
+  this claim" — impossible for every incumbent.
+- **P3** Purge with retention policy (TRS §10's 90-day default); entity logs.
 
-## 4. rock-discord (work on fourth)
+### rock-teams — parties/guilds as first-class identity
+Competitors: FTB Teams, Argonauts, OPAC parties.
+- **P1** Team CRUD, invites, member ranks; `GroupOwner` already models team
+  ownership of claims & accounts — wire it through.
+- **P2** Team chat channel; ally relations; team-scoped permissions via the
+  `claim=`/`team=` context.
+- **P3** Team map markers, cross-server teams.
 
-### Improvements
-- **P1 [parity, M] Chat bridge** — needs `PlayerChatEvent` in rock-api + loader
-  mappings; MC→Discord via existing queue, Discord→MC via gateway transport.
-- **P1 [edge, S] Domain-event embeds** — config-mapped alerts: claim created,
-  big transaction, punishment issued → channel embeds. DiscordSRV needs hooks
-  per plugin; we subscribe to our own EventBus once.
-- **P1 [parity, M] Link verification flow** — `/rock discord link` issues a
-  code, bot DM confirms; require-link mode (kick unlinked) as config.
-- **P2 [parity, M] Gateway (WebSocket) transport** — behind the existing
-  `DiscordGateway` interface: presence, slash commands (`/online`, `/balance`),
-  Discord-side moderation commands.
-- **P2 [parity, M] Role sync** — Discord role ↔ RockGroup bidirectional mapping;
-  emits the same Rank events as in-game promotion.
-- **P3 [parity, S] Console channel** — stream platform log to a staff channel
-  with rate-limit-aware batching (queue already does the hard part).
-- **P3 [parity, S] Ban sync** — `PunishmentAppliedEvent` ↔ Discord ban API.
+### rock-essentials — admin/player QoL kit
+Competitors: FTB Essentials, EssentialCommands.
+- **P1** Homes (limit via typed permission), warps, spawn, TPA (request flow),
+  back-on-death.
+- **P2** Kits (cooldowns via metadata), nicknames (chat meta), mute
+  (RockPunishment.MUTE wiring), invsee/enderchest.
+- **P3** RTP, leaderboards (playtime from rock_players).
 
-## 5. Platform multipliers (after the four modules)
+### rock-moderation — beyond punishments
+- **P1** Punishment commands (/rock ban|mute|warn with durations) on the
+  existing RockPunishment domain + enforcement at loader join/chat.
+- **P2** Vanish, freeze, inventory inspection, grief-alerts (rock-logging
+  feed → staff + Discord).
 
-- **RMG migration toolset (L, non-negotiable per Charter):** importers for
-  LuckPerms (users/groups/tracks/meta), GriefPrevention (claims+trust),
-  Towny (towns/nations/plots → TOWN claims), EssentialsX (balances).
-  Each importer is read-only against the source format — no GPL code linked.
-- **Loader packaging (M, prerequisite for real-server testing):** wire Fabric
-  Loom + NeoForge ModDevGradle in a `packaging/` build so the adapters compile
-  against real mapped Minecraft and bundle jar-in-jar; replaces loader-stubs at
-  release time. This unblocks an actual server + real-clients smoke test.
-- **rock-web dashboard (L, the differentiator):** REST `/api/v1` (players,
-  claims, economy, audit) + JWT auth (TRS §9) — no incumbent has a unified one.
-- **rock-admin (M):** punishments commands wired to the existing
-  `RockPunishment` domain + audit; inspection tools (`/rock who`, claim info).
-- **rock-loader-paper (L, Phase 2):** the land-grab into incumbent territory
-  once module parity exists; brings the Vault bridge with it.
+### rock-backup — scheduled world+DB backups (TRS §14 requires it)
+- **P1** Scheduled snapshots (world dir + SQL dump), retention, restore CLI.
+- **P2** Off-site targets (S3-compatible), pre-restore safety backup.
 
-## 6. Suggested next session
+### rock-metrics — observability (RPS §13)
+- **P1** TPS/memory/event-throughput/DataService-latency counters exposed on
+  the platform; spark detection (integrate, never duplicate).
+- **P2** Prometheus exporter endpoint; per-module tick budget tracking
+  (TRS §3's 0.25 ms/tick budget made observable).
 
-Start with **rock-permissions P1** (contexts, meta, temporary permissions) —
-everything else stacks on it, exactly as REH §19 predicted.
+### rock-webmap — map-layer integration (not a map)
+- **P2** BlueMap/squaremap/Xaero's claim overlays + team colors, fed from the
+  claim index. We integrate with maps; we do not build one.
+
+## 6. Platform multipliers (unchanged priorities)
+- **RMG migration importers** — now including modded sources: FTB Chunks/
+  Ranks/Teams, Flan, OPAC, Ledger history; plus LuckPerms, GriefPrevention,
+  Towny, EssentialsX.
+- **rock-web dashboard** — REST /api/v1 + JWT; the surface no competitor has.
+- **rock-loader-paper** — Phase 2 land grab; brings the Vault bridge.
+
+## 7. Execution order
+
+1. **v1.1.0 (now):** K1 + K4 keystones, claims trust+protection, rock-logging core.
+2. **v1.2.0:** K2 permission providers, permissions P1 set (contexts, typed
+   values, meta, temp), claim flags.
+3. **v1.3.0:** rock-teams, rock-essentials P1, economy P1, discord chat bridge.
+4. **v1.4.0:** rock-moderation, logging P2 (containers, inspector, preview),
+   K3 real packaging → first on-server release.
+5. **v1.5.0:** rock-backup, rock-metrics, webmap overlays, migration importers.

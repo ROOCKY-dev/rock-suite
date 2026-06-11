@@ -1,17 +1,20 @@
 package dev.rock.loader.neoforge;
 
 import dev.rock.api.config.RockConfig;
+import dev.rock.api.events.world.BlockChangeType;
 import dev.rock.core.bootstrap.PlatformEnvironment;
 import dev.rock.core.config.TomlConfigEngine;
 import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
 import dev.rock.data.RockDataModule;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.slf4j.Logger;
@@ -44,6 +47,40 @@ public final class RockNeoForgeMod {
             if (current != null) {
                 Player player = event.getEntity();
                 current.sessions().playerLeft(player.getUUID(), player.getScoreboardName());
+            }
+        });
+
+        // World-interaction layer (K1): break + place feed claims protection
+        // and block logging. Fake-player classification lands with the
+        // ModDevGradle packaging step.
+        NeoForge.EVENT_BUS.addListener((Consumer<BlockEvent.BreakEvent>) event -> {
+            LoaderBootstrap.BootResult current = boot;
+            if (current == null) {
+                return;
+            }
+            UUID worldId = current.worldEvents().worldId(event.getLevel().dimensionKey());
+            boolean allowed = current.worldEvents().blockChange(
+                    event.getPlayer().getUUID(), false, worldId,
+                    event.getPos().getX(), event.getPos().getY(), event.getPos().getZ(),
+                    BlockChangeType.BREAK, event.getState().registryId(), "minecraft:air");
+            if (!allowed) {
+                event.setCanceled(true);
+            }
+        });
+        NeoForge.EVENT_BUS.addListener((Consumer<BlockEvent.EntityPlaceEvent>) event -> {
+            LoaderBootstrap.BootResult current = boot;
+            if (current == null) {
+                return;
+            }
+            Player placer = event.getPlacer();
+            UUID worldId = current.worldEvents().worldId(event.getLevel().dimensionKey());
+            boolean allowed = current.worldEvents().blockChange(
+                    placer == null ? null : placer.getUUID(), false, worldId,
+                    event.getPos().getX(), event.getPos().getY(), event.getPos().getZ(),
+                    BlockChangeType.PLACE, event.getState().registryId(),
+                    event.getPlacedBlock().registryId());
+            if (!allowed) {
+                event.setCanceled(true);
             }
         });
     }

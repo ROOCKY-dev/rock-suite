@@ -18,11 +18,17 @@ import dev.rock.api.event.EventBus;
 import dev.rock.api.events.player.PlayerJoinEvent;
 import dev.rock.api.events.player.PlayerLeaveEvent;
 import dev.rock.api.module.ModuleState;
+import dev.rock.api.domain.ClaimRole;
+import dev.rock.api.domain.RockWorldLogEntry;
+import dev.rock.api.events.world.BlockChangeType;
 import dev.rock.api.services.ClaimService;
 import dev.rock.api.services.DiscordService;
 import dev.rock.api.services.EconomyService;
+import dev.rock.api.services.LogQuery;
 import dev.rock.api.services.PermissionService;
 import dev.rock.api.services.PlayerService;
+import dev.rock.api.services.WorldLogService;
+import dev.rock.api.world.WorldMutator;
 import dev.rock.core.bootstrap.PlatformEnvironment;
 import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
@@ -114,7 +120,7 @@ public final class TestBench {
 
         Map<String, ModuleState> states = platform.moduleLoader().states();
         log.info("[1] Module states: {}", states);
-        check(states.size() == 4, "all four feature modules were discovered");
+        check(states.size() == 5, "all five feature modules were discovered");
         states.forEach((id, state) -> check(state == ModuleState.RUNNING, "module " + id + " is RUNNING"));
 
         EventBus eventBus = services.require(EventBus.class);
@@ -149,7 +155,8 @@ public final class TestBench {
 
         check(commands.dispatch(aliceSender, List.of("version")) == CommandResult.SUCCESS,
                 "/rock version succeeds for a client");
-        check(aliceSender.inbox().getFirst().contains("1.0.0"), "version reply contains 1.0.0");
+        check(aliceSender.inbox().getFirst().contains(dev.rock.core.bootstrap.RockPlatform.VERSION),
+                "version reply contains the platform version");
         check(commands.dispatch(aliceSender, List.of("modules")) == CommandResult.NO_PERMISSION,
                 "/rock modules denied without rock.admin.modules");
         permissions.grant(alice, "rock.admin.*").join();
@@ -172,6 +179,62 @@ public final class TestBench {
             rejected = true;
         }
         check(rejected, "overlapping claim by Bob rejected");
+
+        // ---------------------------------------------------------------
+        log.info("[4b] Protection: Bob tries to grief Alice's claim (world-event layer)");
+        var worldEvents = boot.worldEvents();
+        boolean bobGrief = worldEvents.blockChange(bob, false, world, 5, 64, 5,
+                BlockChangeType.BREAK, "minecraft:diamond_block", "minecraft:air");
+        check(!bobGrief, "Bob's break inside Alice's claim is CANCELLED");
+        boolean aliceBuild = worldEvents.blockChange(alice, false, world, 5, 64, 5,
+                BlockChangeType.BREAK, "minecraft:stone", "minecraft:air");
+        check(aliceBuild, "Alice (owner) may break in her own claim");
+        boolean machineGrief = worldEvents.blockChange(bob, true, world, 6, 64, 6,
+                BlockChangeType.PLACE, "minecraft:air", "minecraft:quarry");
+        check(!machineGrief, "fake-player (machine) change inside a claim is CANCELLED");
+        boolean wilderness = worldEvents.blockChange(bob, false, world, 500, 64, 500,
+                BlockChangeType.BREAK, "minecraft:dirt", "minecraft:air");
+        check(wilderness, "wilderness is unaffected");
+
+        claims.trust(base.id(), bob, ClaimRole.BUILD).join();
+        boolean bobTrusted = worldEvents.blockChange(bob, false, world, 5, 64, 5,
+                BlockChangeType.BREAK, "minecraft:stone", "minecraft:air");
+        check(bobTrusted, "Bob may build after Alice trusts him with BUILD");
+        claims.untrust(base.id(), bob).join();
+
+        // ---------------------------------------------------------------
+        log.info("[4c] Block logging: query Alice's break, then roll the world back");
+        Map<String, String> fakeWorld = new java.util.concurrent.ConcurrentHashMap<>();
+        WorldMutator mutator = new WorldMutator() {
+            @Override
+            public java.util.concurrent.CompletableFuture<Void> setBlock(
+                    UUID worldId, int x, int y, int z, String blockId) {
+                fakeWorld.put(x + "," + y + "," + z, blockId);
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
+            }
+
+            @Override
+            public java.util.concurrent.CompletableFuture<String> getBlock(UUID worldId, int x, int y, int z) {
+                return java.util.concurrent.CompletableFuture.completedFuture(
+                        fakeWorld.getOrDefault(x + "," + y + "," + z, "minecraft:air"));
+            }
+        };
+        services.register(WorldMutator.class, mutator);
+        WorldLogService worldLog = services.require(WorldLogService.class);
+
+        List<RockWorldLogEntry> aliceLog = worldLog.query(
+                LogQuery.builder().world(world).actor(alice).build()).join();
+        check(aliceLog.size() == 1, "Alice's approved break was logged (cancelled ones were not)");
+        check(aliceLog.getFirst().blockBefore().equals("minecraft:stone"), "log captured block_before");
+
+        int rolledBack = worldLog.rollback(
+                LogQuery.builder().world(world).around(5, 64, 5, 2).build()).join();
+        check(rolledBack == 2, "rollback reverted both logged breaks at the position");
+        check(fakeWorld.get("5,64,5").equals("minecraft:stone"), "WorldMutator restored the original block");
+
+        int restored = worldLog.restore(LogQuery.builder().world(world).around(5, 64, 5, 2).build()).join();
+        check(restored == 2, "restore re-applied the rolled-back changes");
+        check(fakeWorld.get("5,64,5").equals("minecraft:air"), "restore re-applied the break");
 
         // ---------------------------------------------------------------
         log.info("[5] Economy: accounts, funded transfer, insufficient funds, reversal");
