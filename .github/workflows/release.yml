@@ -57,7 +57,7 @@ jobs:
       - name: Collect release jars
         run: |
           mkdir -p dist
-          find . -path '*/build/libs/*.jar' ! -name '*-sources.jar' ! -name 'loader-stubs*' -exec cp {} dist/ \;
+          find . -path '*/build/libs/*.jar' ! -name '*-sources.jar' ! -name 'loader-stubs*' ! -name 'rock-conventions*' ! -name 'rock-testbench*' -exec cp {} dist/ \;
           ls -la dist/
 
       - name: Create GitHub Release
