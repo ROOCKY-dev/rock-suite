@@ -248,6 +248,13 @@ public final class DefaultPermissionService implements PermissionService, Lifecy
         return repository.snapshot().thenAccept(cache::set);
     }
 
+    /** Active group by name from the evaluation cache (command-surface helper). */
+    public Optional<RockGroup> groupByName(String name) {
+        return cache.get().groups().values().stream()
+                .filter(group -> group.active() && group.name().equalsIgnoreCase(name))
+                .findFirst();
+    }
+
     // --- Lifecycle ------------------------------------------------------------
 
     @Override

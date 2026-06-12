@@ -27,6 +27,7 @@ public final class PermissionsRockModule implements RockModule {
                 bind(DataServicePermissionRepository.class).in(Scopes.SINGLETON);
                 bind(PermissionService.class).to(DefaultPermissionService.class).in(Scopes.SINGLETON);
                 bind(DefaultPermissionService.class).in(Scopes.SINGLETON);
+                bind(PermissionsCommands.class).in(Scopes.SINGLETON);
             }
         };
     }

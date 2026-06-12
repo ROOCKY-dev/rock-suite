@@ -17,8 +17,11 @@ Sizes S/M/L; [parity] = incumbents have it; [edge] = only ROCK can do it well.
 - **K2 [parity, M] fabric-permissions-api provider + NeoForge PermissionAPI
   provider** — every mod's permission checks route into rock-permissions with
   zero integration work. The highest-ROI bridge on modded.
-- **K3 [parity, L] Real loader packaging** — Loom + ModDevGradle builds
-  replacing loader-stubs at release; unblocks on-server smoke tests.
+- **K3 [parity, L] Real loader packaging** — ✅ DONE (v1.5.x). Loom adapter in
+  `packaging/fabric-mod`, modular install via `packaging/modwrap.py`, on-server
+  test harness (`run-k3.py` + mineflayer bots): **13/13 green on a real Fabric
+  1.21.11 dedicated server with two network clients.** See `packaging/README.md`.
+  NeoForge ModDevGradle adapter still pending.
 - **K4 [edge, M] WorldMutator abstraction** — loader-provided block get/set
   for rollback/restore operations. *(shipping in v1.1.0)*
 

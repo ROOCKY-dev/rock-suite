@@ -28,6 +28,7 @@ public final class ClaimsRockModule implements RockModule {
                 bind(ClaimService.class).to(DefaultClaimService.class).in(Scopes.SINGLETON);
                 bind(DefaultClaimService.class).in(Scopes.SINGLETON);
                 bind(ClaimProtectionListener.class).in(Scopes.SINGLETON);
+                bind(ClaimsCommands.class).in(Scopes.SINGLETON);
             }
         };
     }
