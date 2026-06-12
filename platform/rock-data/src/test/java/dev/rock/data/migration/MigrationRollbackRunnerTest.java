@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 class MigrationRollbackRunnerTest {
 
     /** Latest migration version in db/migration — bump when adding V###s. */
-    private static final int TIP = 9;
+    private static final int TIP = 11;
 
     @TempDir
     Path tempDir;
@@ -68,29 +68,29 @@ class MigrationRollbackRunnerTest {
 
     @Test
     void rollbackOfTipRemovesTablesAndHistoryRow() throws Exception {
-        assertTrue(tables().contains("rock_player_options"));
+        assertTrue(tables().contains("rock_homes"));
         int before = historyCount();
 
         rollback.rollback(TIP);
 
-        assertFalse(tables().contains("rock_player_options"));
-        assertFalse(tables().contains("rock_group_options"));
+        assertFalse(tables().contains("rock_homes"));
+        assertFalse(tables().contains("rock_warps"));
         assertEquals(before - 1, historyCount());
         // Earlier migrations untouched.
         assertTrue(tables().contains("rock_players"));
-        assertTrue(tables().contains("rock_claim_members"));
+        assertTrue(tables().contains("rock_teams"));
     }
 
     @Test
     void rollbackThenReMigrateReachesSameSchema() throws Exception {
         rollback.rollback(TIP);
         rollback.rollback(TIP - 1);
-        assertFalse(tables().contains("rock_claim_members"));
+        assertFalse(tables().contains("rock_teams"));
 
         new DataMigrator(dataSource).migrate();
 
-        assertTrue(tables().contains("rock_claim_members"));
-        assertTrue(tables().contains("rock_player_options"));
+        assertTrue(tables().contains("rock_teams"));
+        assertTrue(tables().contains("rock_homes"));
     }
 
     @Test

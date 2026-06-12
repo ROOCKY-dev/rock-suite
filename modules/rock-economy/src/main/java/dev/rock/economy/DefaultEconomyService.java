@@ -203,6 +203,15 @@ public final class DefaultEconomyService implements EconomyService {
                 });
     }
 
+    @Override
+    public CompletableFuture<List<RockEconomyAccount>> topBalances(int limit) {
+        return data.query("""
+                SELECT * FROM rock_accounts
+                WHERE deleted_at IS NULL AND account_type = 'PLAYER'
+                ORDER BY balance DESC LIMIT :limit
+                """, Map.of("limit", limit), ACCOUNT_MAPPER);
+    }
+
     private static Optional<RockEconomyAccount> findByOwner(TransactionContext tx, OwnerReference owner) {
         return tx.queryOne("SELECT * FROM rock_accounts WHERE owner_ref = :owner AND deleted_at IS NULL",
                 Map.of("owner", owner.serialize()), ACCOUNT_MAPPER);

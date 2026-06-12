@@ -70,7 +70,7 @@ public final class TestBench {
 
     /** Simulated client console sender. */
     private record BenchSender(UUID playerId, String name, List<String> inbox,
-            PermissionService permissions) implements CommandSender {
+            PermissionService permissions, dev.rock.api.domain.RockLocation position) implements CommandSender {
 
         @Override
         public void sendMessage(String message) {
@@ -82,10 +82,21 @@ public final class TestBench {
         public boolean hasPermission(String node) {
             return playerId == null || permissions.has(playerId, node);
         }
+
+        @Override
+        public dev.rock.api.domain.RockLocation location() {
+            return position;
+        }
     }
 
     public static void main(String[] args) throws Exception {
         Path runDir = Path.of("build", "testbench-run").toAbsolutePath();
+        // Deterministic runs: start from a clean data directory every time.
+        if (Files.exists(runDir)) {
+            try (var paths = Files.walk(runDir)) {
+                paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+            }
+        }
         Files.createDirectories(runDir);
 
         // Simulated server tick thread, like MinecraftServer's event loop.
@@ -120,7 +131,7 @@ public final class TestBench {
 
         Map<String, ModuleState> states = platform.moduleLoader().states();
         log.info("[1] Module states: {}", states);
-        check(states.size() == 5, "all five feature modules were discovered");
+        check(states.size() == 7, "all seven feature modules were discovered");
         states.forEach((id, state) -> check(state == ModuleState.RUNNING, "module " + id + " is RUNNING"));
 
         EventBus eventBus = services.require(EventBus.class);
@@ -134,6 +145,7 @@ public final class TestBench {
 
         // ---------------------------------------------------------------
         log.info("[2] Two clients connecting (same path the loader adapters use)");
+        UUID world = UUID.randomUUID();
         UUID alice = UUID.randomUUID();
         UUID bob = UUID.randomUUID();
         CountDownLatch joins = new CountDownLatch(2);
@@ -149,8 +161,9 @@ public final class TestBench {
 
         // ---------------------------------------------------------------
         log.info("[3] Commands: /rock version and /rock modules from Alice's client");
-        BenchSender console = new BenchSender(null, "console", new java.util.ArrayList<>(), permissions);
-        BenchSender aliceSender = new BenchSender(alice, "Alice", new java.util.ArrayList<>(), permissions);
+        BenchSender console = new BenchSender(null, "console", new java.util.ArrayList<>(), permissions, null);
+        BenchSender aliceSender = new BenchSender(alice, "Alice", new java.util.ArrayList<>(), permissions,
+                dev.rock.api.domain.RockLocation.of(world, 8, 64, 8));
         CommandService commands = platform.injector().getInstance(CommandService.class);
 
         check(commands.dispatch(aliceSender, List.of("version")) == CommandResult.SUCCESS,
@@ -165,7 +178,6 @@ public final class TestBench {
 
         // ---------------------------------------------------------------
         log.info("[4] Claims: Alice claims a chunk, Bob is rejected on overlap");
-        UUID world = UUID.randomUUID();
         RockClaim base = claims.create("Alice's Base", new PlayerOwner(alice), ClaimType.PLAYER,
                 new ChunkBounds(world, Set.of(new ChunkCoordinate(0, 0)))).join();
         check(base != null, "claim created and persisted");
@@ -257,6 +269,55 @@ public final class TestBench {
         check(fakeWorld.get("5,64,5").equals("minecraft:air"), "restore re-applied the break");
 
         // ---------------------------------------------------------------
+        log.info("[4d] Teams: Alice founds a team, Bob joins, the team owns land");
+        var teamService = services.require(dev.rock.api.services.TeamService.class);
+        var team = teamService.create("Rockers", alice).join();
+        teamService.addMember(team.id(), bob, dev.rock.api.domain.TeamRole.MEMBER).join();
+        check(teamService.teamOfCached(bob).orElseThrow().name().equals("Rockers"), "Bob is a Rocker");
+
+        UUID teamWorld = UUID.randomUUID();
+        claims.create("Rockers HQ", new dev.rock.api.domain.owner.GroupOwner(team.id()),
+                ClaimType.TOWN, new ChunkBounds(teamWorld, Set.of(new ChunkCoordinate(0, 0)))).join();
+        check(worldEvents.blockChange(bob, false, teamWorld, 3, 64, 3,
+                BlockChangeType.BREAK, "minecraft:stone", "minecraft:air"),
+                "team member builds on team land (zero glue code)");
+        UUID stranger = UUID.randomUUID();
+        check(!worldEvents.blockChange(stranger, false, teamWorld, 3, 64, 3,
+                BlockChangeType.BREAK, "minecraft:stone", "minecraft:air"),
+                "stranger blocked from team land");
+
+        // ---------------------------------------------------------------
+        log.info("[4e] Essentials: /rock sethome + home limit + warps + TPA");
+        check(commands.dispatch(aliceSender, List.of("sethome", "base")) == CommandResult.NO_PERMISSION,
+                "essentials commands are permission-gated");
+        permissions.grant(alice, "rock.essentials.*").join();
+        permissions.grant(bob, "rock.essentials.*").join();
+        check(commands.dispatch(aliceSender, List.of("sethome", "base")) == CommandResult.SUCCESS,
+                "/rock sethome stores Alice's position");
+        var essentials = services.require(dev.rock.api.services.EssentialsService.class);
+        check(essentials.home(alice, "base").join().orElseThrow().x() == 8, "home persisted at her position");
+        check(commands.dispatch(aliceSender, List.of("home", "base")) == CommandResult.SUCCESS,
+                "/rock home resolves (teleport degrades gracefully without a loader teleporter)");
+
+        essentials.setWarp("spawn", dev.rock.api.domain.RockLocation.of(world, 0, 70, 0), alice).join();
+        check(essentials.warps().join().contains("spawn"), "warp registered");
+
+        essentials.tpa(bob, alice);
+        check(essentials.tpaccept(alice).orElseThrow().equals(bob), "TPA request flows");
+
+        // ---------------------------------------------------------------
+        log.info("[4f] Chat: message flows, a mute listener can suppress it");
+        check(boot.sessions().playerChatted(alice, "Alice", "hello rock!"), "chat passes through");
+        var muteSub = eventBus.subscribe(dev.rock.api.events.player.PlayerChatEvent.class,
+                dev.rock.api.event.EventPriority.EARLY, e -> {
+                    if (e.actor().equals(bob)) {
+                        e.cancel();
+                    }
+                });
+        check(!boot.sessions().playerChatted(bob, "Bob", "spam spam"), "muted player's chat suppressed");
+        muteSub.close();
+
+        // ---------------------------------------------------------------
         log.info("[5] Economy: accounts, funded transfer, insufficient funds, reversal");
         economy.openAccount(new PlayerOwner(alice), AccountType.PLAYER).join();
         economy.openAccount(new PlayerOwner(bob), AccountType.PLAYER).join();
@@ -278,6 +339,18 @@ public final class TestBench {
         check(payment.id().equals(refund.reversalOf()), "reversal links to original transaction");
         check(economy.balance(aliceAccount.id()).join().compareTo(new BigDecimal("100.00")) == 0,
                 "Alice restored to 100.00 after refund");
+
+        // Player commands on the audited ledger (1.3)
+        check(commands.dispatch(aliceSender, List.of("balance")) == CommandResult.NO_PERMISSION,
+                "economy commands permission-gated");
+        permissions.grant(alice, "rock.economy.*").join();
+        check(commands.dispatch(aliceSender, List.of("balance")) == CommandResult.SUCCESS,
+                "/rock balance shows formatted balance");
+        check(aliceSender.inbox().getLast().contains("$"), "currency formatting applied");
+        check(commands.dispatch(aliceSender, List.of("pay", "Bob", "5.00")) == CommandResult.SUCCESS,
+                "/rock pay moves money through the ledger");
+        check(commands.dispatch(aliceSender, List.of("baltop")) == CommandResult.SUCCESS,
+                "/rock baltop lists richest players");
 
         // ---------------------------------------------------------------
         log.info("[6] Discord: identity link + queued send (no token → no-op gateway)");

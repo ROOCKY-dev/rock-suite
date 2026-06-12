@@ -13,7 +13,7 @@ public final class EconomyRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-economy", "Rock Economy", "1.2.0", "1.2",
+                "rock-economy", "Rock Economy", "1.3.0", "1.3",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }
@@ -25,6 +25,7 @@ public final class EconomyRockModule implements RockModule {
             protected void configure() {
                 bind(EconomyService.class).to(DefaultEconomyService.class).in(Scopes.SINGLETON);
                 bind(DefaultEconomyService.class).in(Scopes.SINGLETON);
+                bind(EconomyCommands.class).in(Scopes.SINGLETON);
             }
         };
     }

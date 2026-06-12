@@ -12,6 +12,7 @@ import java.util.UUID;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -82,6 +83,16 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
             return current.worldEvents().blockChange(
                     player.getUUID(), false, worldId, pos.getX(), pos.getY(), pos.getZ(),
                     BlockChangeType.BREAK, state.registryId(), "minecraft:air");
+        });
+
+        // Chat layer: pre-broadcast check feeds mutes/filters and the Discord bridge.
+        ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, sender, params) -> {
+            LoaderBootstrap.BootResult current = boot;
+            if (current == null) {
+                return true;
+            }
+            return current.sessions().playerChatted(
+                    sender.getUUID(), sender.getScoreboardName(), message.signedContent());
         });
     }
 

@@ -31,4 +31,7 @@ public interface EconomyService extends RockService {
     CompletableFuture<RockTransaction> reverse(UUID transactionId, String reason);
 
     CompletableFuture<List<RockTransaction>> history(UUID accountId, int limit);
+
+    /** Richest active accounts, balance descending (baltop). Since 1.3. */
+    CompletableFuture<List<RockEconomyAccount>> topBalances(int limit);
 }

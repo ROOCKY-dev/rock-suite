@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -63,6 +64,17 @@ public final class RockNeoForgeMod {
                     event.getPlayer().getUUID(), false, worldId,
                     event.getPos().getX(), event.getPos().getY(), event.getPos().getZ(),
                     BlockChangeType.BREAK, event.getState().registryId(), "minecraft:air");
+            if (!allowed) {
+                event.setCanceled(true);
+            }
+        });
+        NeoForge.EVENT_BUS.addListener((Consumer<ServerChatEvent>) event -> {
+            LoaderBootstrap.BootResult current = boot;
+            if (current == null) {
+                return;
+            }
+            boolean allowed = current.sessions().playerChatted(
+                    event.getPlayer().getUUID(), event.getPlayer().getScoreboardName(), event.getRawText());
             if (!allowed) {
                 event.setCanceled(true);
             }

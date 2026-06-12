@@ -59,7 +59,7 @@ class DefaultClaimServiceIntegrationTest {
         new DataMigrator(dataSource).migrate();
         data = new JdbiDataService(Jdbi.create(dataSource));
         eventBus = new DefaultEventBus(Executors.newVirtualThreadPerTaskExecutor());
-        service = new DefaultClaimService(new DataServiceClaimRepository(data), eventBus);
+        service = new DefaultClaimService(new DataServiceClaimRepository(data), eventBus, new dev.rock.core.service.DefaultServiceRegistry());
     }
 
     @AfterEach

@@ -23,12 +23,14 @@ public final class DiscordRockModule implements RockModule {
             # Inject the bot token via environment — never commit it (TRS §11).
             # token = "${env.ROCK_DISCORD_TOKEN}"
             send-interval-ms = 250
+            # Channel id for the MC<->Discord chat bridge; empty = disabled.
+            chat-bridge-channel = ""
             """;
 
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-discord", "Rock Discord", "1.2.0", "1.2",
+                "rock-discord", "Rock Discord", "1.3.0", "1.3",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }
@@ -40,23 +42,28 @@ public final class DiscordRockModule implements RockModule {
             protected void configure() {
                 bind(DiscordService.class).to(DefaultDiscordService.class).in(Scopes.SINGLETON);
                 bind(DefaultDiscordService.class).in(Scopes.SINGLETON);
+                bind(ChatBridgeListener.class).in(Scopes.SINGLETON);
             }
 
             @Provides
             @Singleton
-            DiscordMessageQueue provideQueue(ConfigEngine configEngine) {
+            DiscordSettings provideSettings(ConfigEngine configEngine) {
                 RockConfig config = configEngine.loadModuleConfig("rock-discord", DEFAULT_CONFIG);
-                Duration interval = Duration.ofMillis(config.getLong("discord.send-interval-ms", 250));
-                String token = config.getString("discord.token", "");
+                return DiscordSettings.fromConfig(config);
+            }
+
+            @Provides
+            @Singleton
+            DiscordMessageQueue provideQueue(DiscordSettings settings) {
                 DiscordGateway gateway;
-                if (token.isBlank()) {
+                if (settings.token().isBlank()) {
                     LoggerFactory.getLogger(DiscordRockModule.class)
                             .warn("No discord.token configured; Discord delivery is disabled (no-op gateway)");
                     gateway = (channel, content) -> CompletableFuture.completedFuture(null);
                 } else {
-                    gateway = new HttpDiscordGateway(token);
+                    gateway = new HttpDiscordGateway(settings.token());
                 }
-                return new DiscordMessageQueue(gateway, interval);
+                return new DiscordMessageQueue(gateway, Duration.ofMillis(settings.sendIntervalMs()));
             }
         };
     }

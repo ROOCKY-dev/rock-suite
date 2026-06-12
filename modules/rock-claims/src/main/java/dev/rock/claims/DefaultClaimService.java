@@ -5,7 +5,9 @@ import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.ClaimType;
 import dev.rock.api.domain.RockClaim;
+import dev.rock.api.domain.TeamRole;
 import dev.rock.api.domain.bounds.ClaimBounds;
+import dev.rock.api.domain.owner.GroupOwner;
 import dev.rock.api.domain.owner.OwnerReference;
 import dev.rock.api.domain.owner.PlayerOwner;
 import dev.rock.api.event.EventBus;
@@ -14,7 +16,9 @@ import dev.rock.api.events.claim.ClaimCreatedEvent;
 import dev.rock.api.events.claim.ClaimDeletedEvent;
 import dev.rock.api.events.claim.ClaimTransferredEvent;
 import dev.rock.api.lifecycle.LifecycleAware;
+import dev.rock.api.service.ServiceRegistry;
 import dev.rock.api.services.ClaimService;
+import dev.rock.api.services.TeamService;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.time.Instant;
@@ -35,12 +39,14 @@ public final class DefaultClaimService implements ClaimService, LifecycleAware {
 
     private final ClaimRepository repository;
     private final EventBus eventBus;
+    private final ServiceRegistry services;
     private final ClaimIndex index = new ClaimIndex();
 
     @Inject
-    public DefaultClaimService(ClaimRepository repository, EventBus eventBus) {
+    public DefaultClaimService(ClaimRepository repository, EventBus eventBus, ServiceRegistry services) {
         this.repository = repository;
         this.eventBus = eventBus;
+        this.services = services;
     }
 
     @Override
@@ -177,6 +183,17 @@ public final class DefaultClaimService implements ClaimService, LifecycleAware {
         }
         if (claim.owner() instanceof PlayerOwner owner && owner.id().equals(playerId)) {
             return Optional.of(ClaimRole.MANAGER);
+        }
+        // Team-owned claims (1.3): team membership maps onto claim trust —
+        // leaders/officers manage, members build. Explicit per-claim trust
+        // (below) can still grant outsiders access.
+        if (claim.owner() instanceof GroupOwner group) {
+            Optional<ClaimRole> teamRole = services.find(TeamService.class)
+                    .flatMap(teams -> teams.roleOfCached(group.id(), playerId))
+                    .map(role -> role.atLeast(TeamRole.OFFICER) ? ClaimRole.MANAGER : ClaimRole.BUILD);
+            if (teamRole.isPresent()) {
+                return teamRole;
+            }
         }
         return index.memberRole(claim.id(), playerId);
     }

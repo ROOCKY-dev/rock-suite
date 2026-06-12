@@ -57,7 +57,7 @@ class ClaimProtectionIntegrationTest {
         new DataMigrator(dataSource).migrate();
         data = new JdbiDataService(Jdbi.create(dataSource));
         eventBus = new DefaultEventBus(Executors.newVirtualThreadPerTaskExecutor());
-        service = new DefaultClaimService(new DataServiceClaimRepository(data), eventBus);
+        service = new DefaultClaimService(new DataServiceClaimRepository(data), eventBus, new dev.rock.core.service.DefaultServiceRegistry());
         service.onEnable();
         protection = new ClaimProtectionListener(service, eventBus);
         protection.onEnable();
@@ -135,7 +135,7 @@ class ClaimProtectionIntegrationTest {
         service.setFlag(claim.id(), dev.rock.api.domain.ClaimFlag.PVP, true).join();
 
         DefaultClaimService restarted =
-                new DefaultClaimService(new DataServiceClaimRepository(data), eventBus);
+                new DefaultClaimService(new DataServiceClaimRepository(data), eventBus, new dev.rock.core.service.DefaultServiceRegistry());
         restarted.onEnable();
 
         RockClaim cached = restarted.claimAtCached(world, 5, 64, 5).orElseThrow();
@@ -149,7 +149,7 @@ class ClaimProtectionIntegrationTest {
 
         // Simulate a restart: fresh service instance warms its index from storage.
         DefaultClaimService restarted =
-                new DefaultClaimService(new DataServiceClaimRepository(data), eventBus);
+                new DefaultClaimService(new DataServiceClaimRepository(data), eventBus, new dev.rock.core.service.DefaultServiceRegistry());
         restarted.onEnable();
 
         RockClaim cached = restarted.claimAtCached(world, 5, 64, 5).orElseThrow();

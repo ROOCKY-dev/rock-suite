@@ -15,7 +15,7 @@ public final class LoggingRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-logging", "Rock Logging", "1.2.0", "1.2",
+                "rock-logging", "Rock Logging", "1.3.0", "1.3",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data"));
     }

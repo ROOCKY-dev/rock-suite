@@ -3,6 +3,7 @@ package dev.rock.core.loader;
 import dev.rock.api.domain.PlayerStatus;
 import dev.rock.api.domain.RockPlayer;
 import dev.rock.api.event.EventBus;
+import dev.rock.api.events.player.PlayerChatEvent;
 import dev.rock.api.events.player.PlayerJoinEvent;
 import dev.rock.api.events.player.PlayerLeaveEvent;
 import dev.rock.api.service.ServiceRegistry;
@@ -71,6 +72,18 @@ public final class PlayerSessionBridge {
         } else {
             eventBus.publishAsync(new PlayerLeaveEvent(transient_(id, username)));
         }
+    }
+
+    /**
+     * Called by loader adapters before a chat message is broadcast (sync,
+     * in-memory listeners only).
+     *
+     * @return true when the message may be broadcast; false when cancelled
+     *         (mute, filter)
+     */
+    public boolean playerChatted(UUID id, String username, String message) {
+        PlayerChatEvent event = eventBus.publish(new PlayerChatEvent(id, username, message));
+        return !event.cancelled();
     }
 
     private static RockPlayer transient_(UUID id, String username) {
