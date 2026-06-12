@@ -34,4 +34,11 @@ public interface EconomyService extends RockService {
 
     /** Richest active accounts, balance descending (baltop). Since 1.3. */
     CompletableFuture<List<RockEconomyAccount>> topBalances(int limit);
+
+    /**
+     * Admin/system mint: credits the target from the server SYSTEM owner,
+     * recorded as a COMPLETED transaction — no invisible money creation
+     * (used by /rock eco give and migration importers). Since 1.5.
+     */
+    CompletableFuture<RockTransaction> grant(OwnerReference target, BigDecimal amount, String reason);
 }

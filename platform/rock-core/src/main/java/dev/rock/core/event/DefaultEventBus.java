@@ -6,6 +6,7 @@ import dev.rock.api.event.Event;
 import dev.rock.api.event.EventBus;
 import dev.rock.api.event.EventPriority;
 import dev.rock.api.event.Subscription;
+import dev.rock.api.metrics.MetricsRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,9 +31,15 @@ public final class DefaultEventBus implements EventBus {
 
     private final Map<Class<?>, List<Registered<?>>> listeners = new ConcurrentHashMap<>();
     private final Executor asyncExecutor;
+    private final MetricsRegistry metrics;
 
     public DefaultEventBus(Executor asyncExecutor) {
+        this(asyncExecutor, null);
+    }
+
+    public DefaultEventBus(Executor asyncExecutor, MetricsRegistry metrics) {
         this.asyncExecutor = Objects.requireNonNull(asyncExecutor, "asyncExecutor");
+        this.metrics = metrics;
     }
 
     private record Registered<E>(
@@ -79,6 +86,9 @@ public final class DefaultEventBus implements EventBus {
     @SuppressWarnings("unchecked")
     public <E extends Event> E publish(E event) {
         Objects.requireNonNull(event, "event");
+        if (metrics != null) {
+            metrics.increment("events." + event.getClass().getSimpleName());
+        }
         List<Registered<?>> registered = listeners.get(event.getClass());
         if (registered == null || registered.isEmpty()) {
             return event;

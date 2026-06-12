@@ -4,7 +4,7 @@ license = "Apache-2.0"
 
 [[mods]]
 modId = "rock_suite"
-version = "1.4.1"
+version = "1.5.0"
 displayName = "ROCK SUITE"
 description = "Cross-platform Minecraft server management platform."
 authors = "ROCK SUITE Founding Developer Team"

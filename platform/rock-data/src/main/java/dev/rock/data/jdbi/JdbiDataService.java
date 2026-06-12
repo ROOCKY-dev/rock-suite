@@ -6,6 +6,7 @@ import dev.rock.api.data.RowMapper;
 import dev.rock.api.data.TransactionContext;
 import dev.rock.api.data.TransactionalWork;
 import dev.rock.api.lifecycle.LifecycleAware;
+import dev.rock.api.metrics.MetricsRegistry;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.util.List;
@@ -30,16 +31,34 @@ public final class JdbiDataService implements DataService, LifecycleAware {
 
     private final Jdbi jdbi;
     private final ExecutorService executor;
+    private final MetricsRegistry metrics;
 
     @Inject
-    public JdbiDataService(Jdbi jdbi) {
+    public JdbiDataService(Jdbi jdbi, MetricsRegistry metrics) {
         this.jdbi = jdbi;
+        this.metrics = metrics;
         this.executor = Executors.newThreadPerTaskExecutor(
                 Thread.ofVirtual().name("rock-data-", 0).factory());
     }
 
+    /** Test constructor without metrics. */
+    public JdbiDataService(Jdbi jdbi) {
+        this(jdbi, null);
+    }
+
     private <T> CompletableFuture<T> async(Supplier<T> work) {
-        return CompletableFuture.supplyAsync(work, executor);
+        if (metrics == null) {
+            return CompletableFuture.supplyAsync(work, executor);
+        }
+        return CompletableFuture.supplyAsync(() -> {
+            long start = System.nanoTime();
+            try {
+                return work.get();
+            } finally {
+                metrics.increment("data.operations");
+                metrics.add("data.operation_micros", (System.nanoTime() - start) / 1_000);
+            }
+        }, executor);
     }
 
     @Override

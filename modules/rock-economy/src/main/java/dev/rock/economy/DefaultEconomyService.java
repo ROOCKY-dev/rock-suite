@@ -9,6 +9,7 @@ import dev.rock.api.domain.RockEconomyAccount;
 import dev.rock.api.domain.RockTransaction;
 import dev.rock.api.domain.TransactionStatus;
 import dev.rock.api.domain.owner.OwnerReference;
+import dev.rock.api.domain.owner.SystemOwner;
 import dev.rock.api.event.EventBus;
 import dev.rock.api.events.economy.BalanceChangedEvent;
 import dev.rock.api.events.economy.TransactionCreatedEvent;
@@ -201,6 +202,32 @@ public final class DefaultEconomyService implements EconomyService {
                             """,
                             Map.of("owner", owner, "limit", limit), TX_MAPPER);
                 });
+    }
+
+    @Override
+    public CompletableFuture<RockTransaction> grant(OwnerReference target, BigDecimal amount, String reason) {
+        if (amount.signum() <= 0) {
+            return CompletableFuture.failedFuture(new EconomyException("Grant amount must be positive"));
+        }
+        return data.inTransaction(tx -> {
+            RockEconomyAccount account = findByOwner(tx, target)
+                    .orElseThrow(() -> new EconomyException("No account for " + target.serialize()
+                            + " — open it first"));
+            // System mint: credits without debiting the SYSTEM owner. The
+            // transaction row keeps money creation visible and auditable.
+            updateBalance(tx, account.id(), account.balance().add(amount));
+            RockTransaction mint = new RockTransaction(UUID.randomUUID(),
+                    SystemOwner.server(), target, amount,
+                    TransactionStatus.COMPLETED, null, Instant.now(), reason);
+            insert(tx, mint);
+            return new Object[] {mint, account.withBalance(account.balance().add(amount))};
+        }).thenApply(pair -> {
+            RockTransaction mint = (RockTransaction) pair[0];
+            RockEconomyAccount account = (RockEconomyAccount) pair[1];
+            eventBus.publish(new TransactionCreatedEvent(mint));
+            eventBus.publish(new BalanceChangedEvent(account, account.balance().subtract(amount)));
+            return mint;
+        });
     }
 
     @Override

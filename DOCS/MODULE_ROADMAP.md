@@ -126,6 +126,16 @@ overlay with ghost-block rollback preview, in-game permission editor.
   itself ships **v2.0** in its own repo, after K3 packaging.
 - Law: vanilla clients always retain 100% functionality via commands.
 
+### Command aliases — admin speed QoL (queued by Project Owner, target v1.6)
+Short root commands mapping onto the /rock tree: `/ban` → `/rock ban`,
+`/mute`, `/warn`, `/home`, `/pay`, … and `/r` as a `/rock` shorthand.
+- Alias table lives in config (`rock.toml [aliases]`) with sane defaults and
+  per-alias disable — servers can dodge collisions with other mods' commands.
+- Implementation: CommandService gains alias registration; loader adapters
+  register each alias as a real root command delegating into dispatch()
+  (needs the brigadier wiring from K3 packaging — hence v1.6 with it).
+- Permission checks unchanged: an alias is pure routing, never a bypass.
+
 ## 6. Platform multipliers (unchanged priorities)
 - **RMG migration importers** — now including modded sources: FTB Chunks/
   Ranks/Teams, Flan, OPAC, Ledger history; plus LuckPerms, GriefPrevention,

@@ -131,7 +131,7 @@ public final class TestBench {
 
         Map<String, ModuleState> states = platform.moduleLoader().states();
         log.info("[1] Module states: {}", states);
-        check(states.size() == 8, "all eight feature modules were discovered");
+        check(states.size() == 11, "all eleven feature modules were discovered");
         states.forEach((id, state) -> check(state == ModuleState.RUNNING, "module " + id + " is RUNNING"));
 
         EventBus eventBus = services.require(EventBus.class);
@@ -385,6 +385,34 @@ public final class TestBench {
                 LogQuery.builder().world(world).around(50, 64, 50, 2).build()).join();
         check(preview.entries() == 1 && preview.byBlockBefore().containsKey("minecraft:gold_block"),
                 "preview summarises the damage without touching the world");
+
+        // ---------------------------------------------------------------
+        log.info("[5d] Operations: backup, metrics report, migration importer");
+        var backups = services.require(dev.rock.api.services.BackupService.class);
+        var backup = backups.createBackup("bench").join();
+        check(backup.sizeBytes() > 0, "backup archive created");
+        check(backups.list().join().getFirst().id().equals(backup.id()), "backup listed newest-first");
+        check(java.nio.file.Files.exists(
+                backups.restoreToStaging(backup.id()).join().resolve("rock.db")),
+                "staging restore contains the database");
+
+        check(commands.dispatch(aliceSender, List.of("metrics")) == CommandResult.SUCCESS,
+                "/rock metrics reports");
+        check(aliceSender.inbox().stream().anyMatch(m -> m.contains("Heap:")), "metrics include JVM gauges");
+        check(aliceSender.inbox().stream().anyMatch(m -> m.contains("DataService:")),
+                "metrics include DataService timings");
+
+        // RMG: import an EssentialsX balance for a brand-new player.
+        UUID legacyPlayer = UUID.randomUUID();
+        Path userdata = runDir.resolve("essentials-userdata");
+        Files.createDirectories(userdata);
+        Files.writeString(userdata.resolve(legacyPlayer + ".yml"), "money: '5000.00'\n");
+        check(commands.dispatch(console, List.of("migrate", "essentialsx", userdata.toString()))
+                == CommandResult.SUCCESS, "/rock migrate essentialsx runs");
+        var legacyAccount = economy.findAccount(
+                new dev.rock.api.domain.owner.PlayerOwner(legacyPlayer)).join().orElseThrow();
+        check(economy.balance(legacyAccount.id()).join().compareTo(new BigDecimal("5000.00")) == 0,
+                "legacy balance arrived as an audited SYSTEM grant");
 
         // ---------------------------------------------------------------
         log.info("[6] Discord: identity link + queued send (no token → no-op gateway)");

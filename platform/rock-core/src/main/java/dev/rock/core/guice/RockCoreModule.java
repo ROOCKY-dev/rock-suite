@@ -7,6 +7,7 @@ import dev.rock.api.annotations.RockInternal;
 import dev.rock.api.command.CommandService;
 import dev.rock.api.config.ConfigEngine;
 import dev.rock.api.event.EventBus;
+import dev.rock.api.metrics.MetricsRegistry;
 import dev.rock.api.scheduler.Scheduler;
 import dev.rock.api.service.ServiceRegistry;
 import dev.rock.core.bootstrap.PlatformEnvironment;
@@ -17,6 +18,7 @@ import dev.rock.core.guice.PlatformListeners.LifecycleListener;
 import dev.rock.core.guice.PlatformListeners.ServiceRegistrationListener;
 import dev.rock.core.guice.PlatformListeners.SubtypeMatcher;
 import dev.rock.core.lifecycle.LifecycleManager;
+import dev.rock.core.metrics.DefaultMetricsRegistry;
 import dev.rock.core.scheduler.RockScheduler;
 import dev.rock.core.service.DefaultServiceRegistry;
 import java.nio.file.Path;
@@ -77,7 +79,10 @@ public final class RockCoreModule extends AbstractModule {
         bind(Scheduler.class).toInstance(scheduler);
         bind(RockScheduler.class).toInstance(scheduler);
 
-        DefaultEventBus eventBus = new DefaultEventBus(asyncExecutor);
+        DefaultMetricsRegistry metricsRegistry = new DefaultMetricsRegistry();
+        bind(MetricsRegistry.class).toInstance(metricsRegistry);
+
+        DefaultEventBus eventBus = new DefaultEventBus(asyncExecutor, metricsRegistry);
         bind(EventBus.class).toInstance(eventBus);
 
         bind(ConfigEngine.class).to(TomlConfigEngine.class).in(Scopes.SINGLETON);
@@ -97,5 +102,6 @@ public final class RockCoreModule extends AbstractModule {
         registry.replace(ServiceRegistry.class, registry);
         registry.replace(EventBus.class, eventBus);
         registry.replace(Scheduler.class, scheduler);
+        registry.replace(MetricsRegistry.class, metricsRegistry);
     }
 }
