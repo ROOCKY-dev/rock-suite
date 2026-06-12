@@ -78,8 +78,17 @@ public final class LogConsumer implements AutoCloseable {
 
     @Override
     public void close() {
+        // Stop accepting new drains, then WAIT for the worker to finish any
+        // in-flight insertBatch before our final flush — otherwise the worker's
+        // write races the caller's datasource teardown (intermittent I/O error
+        // under load). Don't interrupt mid-write; let the current loop iteration
+        // complete (it sleeps between batches, so this returns promptly).
         running = false;
-        worker.interrupt();
+        try {
+            worker.join(java.time.Duration.ofSeconds(10).toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         try {
             flush().join();
         } catch (Exception e) {
