@@ -13,7 +13,7 @@ public final class TeamsRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-teams", "Rock Teams", "1.3.0", "1.3",
+                "rock-teams", "Rock Teams", "1.4.0", "1.4",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data"));
     }

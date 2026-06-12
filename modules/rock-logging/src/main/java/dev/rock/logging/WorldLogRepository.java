@@ -1,5 +1,6 @@
 package dev.rock.logging;
 
+import dev.rock.api.domain.RockItemLogEntry;
 import dev.rock.api.domain.RockWorldLogEntry;
 import dev.rock.api.services.LogQuery;
 import java.util.List;
@@ -9,6 +10,10 @@ import java.util.concurrent.CompletableFuture;
 public interface WorldLogRepository {
 
     CompletableFuture<Void> insertBatch(List<RockWorldLogEntry> entries);
+
+    CompletableFuture<Void> insertItemBatch(List<RockItemLogEntry> entries);
+
+    CompletableFuture<List<RockItemLogEntry>> findItems(LogQuery query);
 
     /**
      * @param rolledBack filter on the rolled-back flag; null = any

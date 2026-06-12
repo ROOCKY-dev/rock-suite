@@ -116,6 +116,16 @@ Competitors: FTB Essentials, EssentialCommands.
 - **P2** BlueMap/squaremap/Xaero's claim overlays + team colors, fed from the
   claim index. We integrate with maps; we do not build one.
 
+### rock-client — native client companion ⭐ the experience moat (future)
+Full concept: **RFC-001-ROCK-CLIENT.md**. Optional client mod turning command
+interactions into GUIs/HUDs/overlays — claim map & drag-claiming (the FTB
+Chunks killer), in-world boundaries, TPA toasts, wallet HUD, admin inspector
+overlay with ghost-block rollback preview, in-game permission editor.
+- Prereq `platform/rock-protocol` (server-side payload projection, shared
+  with the web dashboard's WebSocket feed) lands **v1.6**; the client mod
+  itself ships **v2.0** in its own repo, after K3 packaging.
+- Law: vanilla clients always retain 100% functionality via commands.
+
 ## 6. Platform multipliers (unchanged priorities)
 - **RMG migration importers** — now including modded sources: FTB Chunks/
   Ranks/Teams, Flan, OPAC, Ledger history; plus LuckPerms, GriefPrevention,
@@ -132,3 +142,5 @@ Competitors: FTB Essentials, EssentialCommands.
 4. **v1.4.0:** rock-moderation, logging P2 (containers, inspector, preview),
    K3 real packaging → first on-server release.
 5. **v1.5.0:** rock-backup, rock-metrics, webmap overlays, migration importers.
+6. **v1.6.0:** platform/rock-protocol (client/web projection layer, RFC-001).
+7. **v2.0:** rock-client Tier 1 + rock-web, sharing the protocol layer.

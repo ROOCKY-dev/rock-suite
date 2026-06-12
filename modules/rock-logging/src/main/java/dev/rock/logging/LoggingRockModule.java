@@ -15,7 +15,7 @@ public final class LoggingRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-logging", "Rock Logging", "1.3.0", "1.3",
+                "rock-logging", "Rock Logging", "1.4.0", "1.4",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data"));
     }
@@ -29,6 +29,7 @@ public final class LoggingRockModule implements RockModule {
                 bind(DataServiceWorldLogRepository.class).in(Scopes.SINGLETON);
                 bind(WorldLogService.class).to(DefaultWorldLogService.class).in(Scopes.SINGLETON);
                 bind(DefaultWorldLogService.class).in(Scopes.SINGLETON);
+                bind(LoggingCommands.class).in(Scopes.SINGLETON);
             }
 
             @Provides

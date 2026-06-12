@@ -9,3 +9,4 @@ U008__create_claim_members.sql
 U009__permissions_contexts_options.sql
 U010__create_teams.sql
 U011__create_essentials.sql
+U012__create_item_log.sql

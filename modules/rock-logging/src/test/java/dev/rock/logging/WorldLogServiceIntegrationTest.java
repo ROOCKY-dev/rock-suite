@@ -151,6 +151,53 @@ class WorldLogServiceIntegrationTest {
     }
 
     @Test
+    void itemFlowsAreTrackedAndCancelledOnesAreNot() {
+        eventBus.publish(new dev.rock.api.events.world.ItemFlowEvent(bob, false, world, 5, 64, 5,
+                dev.rock.api.events.world.ItemFlowDirection.REMOVE, "minecraft:diamond", 64));
+        dev.rock.api.events.world.ItemFlowEvent cancelled =
+                new dev.rock.api.events.world.ItemFlowEvent(bob, false, world, 5, 64, 5,
+                        dev.rock.api.events.world.ItemFlowDirection.REMOVE, "minecraft:netherite_ingot", 8);
+        cancelled.cancel();
+        eventBus.publish(cancelled);
+
+        var items = service.queryItems(LogQuery.builder().world(world).actor(bob).build()).join();
+
+        assertEquals(1, items.size(), "only the approved removal is logged");
+        assertEquals("minecraft:diamond", items.getFirst().itemId());
+        assertEquals(64, items.getFirst().count());
+        assertEquals(dev.rock.api.events.world.ItemFlowDirection.REMOVE, items.getFirst().direction());
+    }
+
+    @Test
+    void inspectReturnsPositionHistoryNewestFirst() {
+        breakBlock(alice, 5, 64, 5, "minecraft:stone");
+        breakBlock(bob, 5, 64, 5, "minecraft:dirt");
+        breakBlock(bob, 9, 64, 9, "minecraft:sand");
+
+        var history = service.inspect(world, 5, 64, 5, 10).join();
+
+        assertEquals(2, history.size(), "inspector sees only this position");
+        assertEquals("minecraft:dirt", history.getFirst().blockBefore(), "newest first");
+    }
+
+    @Test
+    void previewSummarisesWithoutApplying() {
+        registerMutator();
+        breakBlock(bob, 5, 64, 5, "minecraft:stone");
+        breakBlock(bob, 6, 64, 6, "minecraft:stone");
+        breakBlock(bob, 7, 64, 7, "minecraft:oak_log");
+
+        var preview = service.previewRollback(LogQuery.builder().world(world).actor(bob).build()).join();
+
+        assertEquals(3, preview.entries());
+        assertEquals(3, preview.byAction().get(BlockChangeType.BREAK));
+        assertEquals(2, preview.byBlockBefore().get("minecraft:stone"));
+        assertTrue(fakeWorld.isEmpty(), "preview must not touch the world");
+        // …and the real rollback still works afterwards.
+        assertEquals(3, service.rollback(LogQuery.builder().world(world).actor(bob).build()).join());
+    }
+
+    @Test
     void consumerBatchesLargeBursts() {
         for (int i = 0; i < 500; i++) {
             breakBlock(alice, i, 64, 0, "minecraft:stone");

@@ -1,6 +1,7 @@
 package dev.rock.core.loader;
 
 import dev.rock.api.domain.PlayerStatus;
+import dev.rock.api.domain.PunishmentType;
 import dev.rock.api.domain.RockPlayer;
 import dev.rock.api.event.EventBus;
 import dev.rock.api.events.player.PlayerChatEvent;
@@ -8,6 +9,7 @@ import dev.rock.api.events.player.PlayerJoinEvent;
 import dev.rock.api.events.player.PlayerLeaveEvent;
 import dev.rock.api.service.ServiceRegistry;
 import dev.rock.api.services.PlayerService;
+import dev.rock.api.services.PunishmentService;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
@@ -37,6 +39,20 @@ public final class PlayerSessionBridge {
 
     private Optional<PlayerService> playerService() {
         return services.find(PlayerService.class);
+    }
+
+    /**
+     * Ban gate, called by loader adapters BEFORE the connection completes
+     * (tick-safe — consults the moderation cache only). Returns the
+     * disconnect message when the player is banned; empty means allowed.
+     */
+    public Optional<String> joinDenialReason(UUID id) {
+        return services.find(PunishmentService.class)
+                .flatMap(punishments -> punishments.activeCached(id, PunishmentType.BAN))
+                .map(ban -> {
+                    String until = ban.expires() == null ? "permanently" : "until " + ban.expires();
+                    return "You are banned " + until + ": " + ban.reason();
+                });
     }
 
     /** Called by loader adapters when a player connection is ready. */

@@ -3,8 +3,10 @@ package dev.rock.logging;
 import dev.rock.api.annotations.RockInternal;
 import dev.rock.api.data.DataService;
 import dev.rock.api.data.RowMapper;
+import dev.rock.api.domain.RockItemLogEntry;
 import dev.rock.api.domain.RockWorldLogEntry;
 import dev.rock.api.events.world.BlockChangeType;
+import dev.rock.api.events.world.ItemFlowDirection;
 import dev.rock.api.services.LogQuery;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -69,10 +71,8 @@ public final class DataServiceWorldLogRepository implements WorldLogRepository {
                 .thenApply(counts -> null);
     }
 
-    @Override
-    public CompletableFuture<List<RockWorldLogEntry>> find(LogQuery query, Boolean rolledBack, boolean oldestFirst) {
-        StringBuilder sql = new StringBuilder("SELECT * FROM rock_world_log WHERE 1=1");
-        Map<String, Object> params = new HashMap<>();
+    /** Shared filter rendering for both log tables. */
+    private static void applyFilters(StringBuilder sql, Map<String, Object> params, LogQuery query) {
         if (query.worldId() != null) {
             sql.append(" AND world_id = :world");
             params.put("world", query.worldId().toString());
@@ -98,6 +98,13 @@ public final class DataServiceWorldLogRepository implements WorldLogRepository {
             params.put("z1", query.centerZ() - query.radius());
             params.put("z2", query.centerZ() + query.radius());
         }
+    }
+
+    @Override
+    public CompletableFuture<List<RockWorldLogEntry>> find(LogQuery query, Boolean rolledBack, boolean oldestFirst) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM rock_world_log WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
+        applyFilters(sql, params, query);
         if (query.action() != null) {
             sql.append(" AND action = :action");
             params.put("action", query.action().name());
@@ -110,6 +117,53 @@ public final class DataServiceWorldLogRepository implements WorldLogRepository {
         sql.append(" LIMIT :limit");
         params.put("limit", query.limit());
         return data.query(sql.toString(), params, ENTRY_MAPPER);
+    }
+
+    private static final RowMapper<RockItemLogEntry> ITEM_MAPPER = row -> new RockItemLogEntry(
+            row.getUuid("id"),
+            row.getUuid("actor"),
+            row.getInt("fake_actor") != 0,
+            row.getUuid("world_id"),
+            row.getInt("x"),
+            row.getInt("y"),
+            row.getInt("z"),
+            ItemFlowDirection.valueOf(row.getString("direction")),
+            row.getString("item_id"),
+            row.getInt("item_count"),
+            row.getInstant("ts"));
+
+    @Override
+    public CompletableFuture<Void> insertItemBatch(List<RockItemLogEntry> entries) {
+        List<Map<String, Object>> batch = entries.stream().map(entry -> {
+            Map<String, Object> params = new HashMap<>();
+            params.put("id", entry.id().toString());
+            params.put("actor", entry.actor() == null ? null : entry.actor().toString());
+            params.put("fake", entry.fakeActor() ? 1 : 0);
+            params.put("world", entry.worldId().toString());
+            params.put("x", entry.x());
+            params.put("y", entry.y());
+            params.put("z", entry.z());
+            params.put("direction", entry.direction().name());
+            params.put("item", entry.itemId());
+            params.put("count", entry.count());
+            params.put("ts", entry.timestamp().toEpochMilli());
+            return params;
+        }).toList();
+        return data.batch("""
+                INSERT INTO rock_item_log
+                    (id, actor, fake_actor, world_id, x, y, z, direction, item_id, item_count, ts)
+                VALUES (:id, :actor, :fake, :world, :x, :y, :z, :direction, :item, :count, :ts)
+                """, batch).thenApply(counts -> null);
+    }
+
+    @Override
+    public CompletableFuture<List<RockItemLogEntry>> findItems(LogQuery query) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM rock_item_log WHERE 1=1");
+        Map<String, Object> params = new HashMap<>();
+        applyFilters(sql, params, query);
+        sql.append(" ORDER BY ts DESC LIMIT :limit");
+        params.put("limit", query.limit());
+        return data.query(sql.toString(), params, ITEM_MAPPER);
     }
 
     @Override

@@ -23,5 +23,6 @@ dependencies {
     runtimeOnly(project(":rock-logging"))
     runtimeOnly(project(":rock-teams"))
     runtimeOnly(project(":rock-essentials"))
+    runtimeOnly(project(":rock-moderation"))
     runtimeOnly(libs.slf4j.simple)
 }

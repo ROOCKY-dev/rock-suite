@@ -6,7 +6,9 @@ import com.google.inject.Scopes;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.rock.api.data.DataService;
+import dev.rock.api.services.AuditService;
 import dev.rock.api.services.PlayerService;
+import dev.rock.data.audit.DefaultAuditService;
 import dev.rock.data.jdbi.JdbiDataService;
 import dev.rock.data.player.DefaultPlayerService;
 import dev.rock.data.migration.DataMigrator;
@@ -38,6 +40,8 @@ public final class RockDataModule extends AbstractModule {
         bind(MigrationRollbackRunner.class).in(Scopes.SINGLETON);
         bind(PlayerService.class).to(DefaultPlayerService.class).in(Scopes.SINGLETON);
         bind(DefaultPlayerService.class).in(Scopes.SINGLETON);
+        bind(AuditService.class).to(DefaultAuditService.class).in(Scopes.SINGLETON);
+        bind(DefaultAuditService.class).in(Scopes.SINGLETON);
     }
 
     @Provides

@@ -131,7 +131,7 @@ public final class TestBench {
 
         Map<String, ModuleState> states = platform.moduleLoader().states();
         log.info("[1] Module states: {}", states);
-        check(states.size() == 7, "all seven feature modules were discovered");
+        check(states.size() == 8, "all eight feature modules were discovered");
         states.forEach((id, state) -> check(state == ModuleState.RUNNING, "module " + id + " is RUNNING"));
 
         EventBus eventBus = services.require(EventBus.class);
@@ -351,6 +351,40 @@ public final class TestBench {
                 "/rock pay moves money through the ledger");
         check(commands.dispatch(aliceSender, List.of("baltop")) == CommandResult.SUCCESS,
                 "/rock baltop lists richest players");
+
+        // ---------------------------------------------------------------
+        log.info("[5b] Moderation: mute silences chat, ban gates the door, all audited");
+        var punishments = services.require(dev.rock.api.services.PunishmentService.class);
+        var mute = punishments.punish(dev.rock.api.domain.PunishmentType.MUTE, bob,
+                dev.rock.api.domain.owner.SystemOwner.server(), "spamming", null).join();
+        check(!boot.sessions().playerChatted(bob, "Bob", "buy gold"), "muted Bob cannot chat");
+        punishments.revoke(mute.id(), alice).join();
+        check(boot.sessions().playerChatted(bob, "Bob", "im free"), "unmute restores chat");
+
+        UUID troublemaker = UUID.randomUUID();
+        punishments.punish(dev.rock.api.domain.PunishmentType.BAN, troublemaker,
+                dev.rock.api.domain.owner.SystemOwner.server(), "x-ray", null).join();
+        check(boot.sessions().joinDenialReason(troublemaker).orElse("").contains("x-ray"),
+                "banned player is denied at the door with the reason");
+        check(boot.sessions().joinDenialReason(alice).isEmpty(), "Alice joins freely");
+        var auditTrail = services.require(dev.rock.api.services.AuditService.class)
+                .findByTarget("PLAYER", troublemaker, 5).join();
+        check(!auditTrail.isEmpty(), "the ban left a RockAuditEntry");
+
+        // ---------------------------------------------------------------
+        log.info("[5c] Logging P2: container theft tracking + rollback preview");
+        eventBus.publish(new dev.rock.api.events.world.ItemFlowEvent(bob, false, world, 5, 64, 5,
+                dev.rock.api.events.world.ItemFlowDirection.REMOVE, "minecraft:diamond", 64));
+        var theft = worldLog.queryItems(LogQuery.builder().world(world).actor(bob).build()).join();
+        check(theft.size() == 1 && theft.getFirst().itemId().equals("minecraft:diamond"),
+                "Bob's 64-diamond grab is on record");
+
+        worldEvents.blockChange(bob, false, world, 50, 64, 50,
+                BlockChangeType.BREAK, "minecraft:gold_block", "minecraft:air");
+        var preview = worldLog.previewRollback(
+                LogQuery.builder().world(world).around(50, 64, 50, 2).build()).join();
+        check(preview.entries() == 1 && preview.byBlockBefore().containsKey("minecraft:gold_block"),
+                "preview summarises the damage without touching the world");
 
         // ---------------------------------------------------------------
         log.info("[6] Discord: identity link + queued send (no token → no-op gateway)");

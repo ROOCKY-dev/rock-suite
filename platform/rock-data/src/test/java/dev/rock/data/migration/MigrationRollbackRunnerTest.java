@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 class MigrationRollbackRunnerTest {
 
     /** Latest migration version in db/migration — bump when adding V###s. */
-    private static final int TIP = 11;
+    private static final int TIP = 12;
 
     @TempDir
     Path tempDir;
@@ -68,29 +68,28 @@ class MigrationRollbackRunnerTest {
 
     @Test
     void rollbackOfTipRemovesTablesAndHistoryRow() throws Exception {
-        assertTrue(tables().contains("rock_homes"));
+        assertTrue(tables().contains("rock_item_log"));
         int before = historyCount();
 
         rollback.rollback(TIP);
 
-        assertFalse(tables().contains("rock_homes"));
-        assertFalse(tables().contains("rock_warps"));
+        assertFalse(tables().contains("rock_item_log"));
         assertEquals(before - 1, historyCount());
         // Earlier migrations untouched.
         assertTrue(tables().contains("rock_players"));
-        assertTrue(tables().contains("rock_teams"));
+        assertTrue(tables().contains("rock_homes"));
     }
 
     @Test
     void rollbackThenReMigrateReachesSameSchema() throws Exception {
         rollback.rollback(TIP);
         rollback.rollback(TIP - 1);
-        assertFalse(tables().contains("rock_teams"));
+        assertFalse(tables().contains("rock_homes"));
 
         new DataMigrator(dataSource).migrate();
 
-        assertTrue(tables().contains("rock_teams"));
         assertTrue(tables().contains("rock_homes"));
+        assertTrue(tables().contains("rock_item_log"));
     }
 
     @Test

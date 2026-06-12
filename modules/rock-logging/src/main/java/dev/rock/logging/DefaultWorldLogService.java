@@ -1,22 +1,30 @@
 package dev.rock.logging;
 
 import dev.rock.api.annotations.RockInternal;
+import dev.rock.api.domain.RockItemLogEntry;
 import dev.rock.api.domain.RockWorldLogEntry;
 import dev.rock.api.event.EventBus;
 import dev.rock.api.event.EventPriority;
 import dev.rock.api.event.Subscription;
 import dev.rock.api.events.world.BlockChangeEvent;
+import dev.rock.api.events.world.BlockChangeType;
+import dev.rock.api.events.world.ItemFlowEvent;
 import dev.rock.api.lifecycle.LifecycleAware;
 import dev.rock.api.service.ServiceRegistry;
 import dev.rock.api.services.LogQuery;
+import dev.rock.api.services.RollbackPreview;
 import dev.rock.api.services.WorldLogService;
 import dev.rock.api.world.WorldMutator;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,11 +40,14 @@ public final class DefaultWorldLogService implements WorldLogService, LifecycleA
 
     private static final Logger log = LoggerFactory.getLogger(DefaultWorldLogService.class);
 
+    private static final int ITEM_BATCH_TRIGGER = 200;
+
     private final WorldLogRepository repository;
     private final LogConsumer consumer;
     private final EventBus eventBus;
     private final ServiceRegistry services;
-    private Subscription subscription;
+    private final ConcurrentLinkedQueue<RockItemLogEntry> itemQueue = new ConcurrentLinkedQueue<>();
+    private final List<Subscription> subscriptions = new ArrayList<>();
 
     @Inject
     public DefaultWorldLogService(
@@ -49,20 +60,40 @@ public final class DefaultWorldLogService implements WorldLogService, LifecycleA
 
     @Override
     public void onEnable() {
-        subscription = eventBus.subscribe(BlockChangeEvent.class, EventPriority.LAST, false, event ->
+        subscriptions.add(eventBus.subscribe(BlockChangeEvent.class, EventPriority.LAST, false, event ->
                 consumer.enqueue(new RockWorldLogEntry(
                         UUID.randomUUID(), event.actor(), event.fakePlayer(), event.worldId(),
                         event.x(), event.y(), event.z(), event.type(),
-                        event.blockBefore(), event.blockAfter(), Instant.now(), false)));
-        log.info("World logging active (async batched consumer)");
+                        event.blockBefore(), event.blockAfter(), Instant.now(), false))));
+        subscriptions.add(eventBus.subscribe(ItemFlowEvent.class, EventPriority.LAST, false, event -> {
+            itemQueue.add(new RockItemLogEntry(
+                    UUID.randomUUID(), event.actor(), event.fakePlayer(), event.worldId(),
+                    event.x(), event.y(), event.z(), event.direction(), event.itemId(),
+                    event.count(), Instant.now()));
+            if (itemQueue.size() >= ITEM_BATCH_TRIGGER) {
+                flushItems();
+            }
+        }));
+        log.info("World logging active (async batched consumer; block + container tracking)");
     }
 
     @Override
     public void onDisable() {
-        if (subscription != null) {
-            subscription.close();
-        }
+        subscriptions.forEach(Subscription::close);
+        subscriptions.clear();
+        flushItems().join();
         consumer.close();
+    }
+
+    private CompletableFuture<Void> flushItems() {
+        List<RockItemLogEntry> batch = new ArrayList<>();
+        RockItemLogEntry entry;
+        while ((entry = itemQueue.poll()) != null) {
+            batch.add(entry);
+        }
+        return batch.isEmpty()
+                ? CompletableFuture.completedFuture(null)
+                : repository.insertItemBatch(batch);
     }
 
     @Override
@@ -90,7 +121,27 @@ public final class DefaultWorldLogService implements WorldLogService, LifecycleA
 
     @Override
     public CompletableFuture<Void> flush() {
-        return consumer.flush();
+        return CompletableFuture.allOf(consumer.flush(), flushItems());
+    }
+
+    @Override
+    public CompletableFuture<List<RockItemLogEntry>> queryItems(LogQuery query) {
+        return flushItems().thenCompose(v -> repository.findItems(query));
+    }
+
+    @Override
+    public CompletableFuture<RollbackPreview> previewRollback(LogQuery query) {
+        return consumer.flush()
+                .thenCompose(v -> repository.find(query, false, false))
+                .thenApply(entries -> {
+                    Map<BlockChangeType, Integer> byAction = new HashMap<>();
+                    Map<String, Integer> byBlock = new HashMap<>();
+                    for (RockWorldLogEntry entry : entries) {
+                        byAction.merge(entry.action(), 1, Integer::sum);
+                        byBlock.merge(entry.blockBefore(), 1, Integer::sum);
+                    }
+                    return new RollbackPreview(entries.size(), byAction, byBlock);
+                });
     }
 
     private CompletableFuture<Integer> applyAll(

@@ -1,8 +1,10 @@
 package dev.rock.api.services;
 
+import dev.rock.api.domain.RockItemLogEntry;
 import dev.rock.api.domain.RockWorldLogEntry;
 import dev.rock.api.service.RockService;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -27,4 +29,17 @@ public interface WorldLogService extends RockService {
 
     /** Forces any buffered log entries to be written (used on shutdown/tests). */
     CompletableFuture<Void> flush();
+
+    // --- P2 (since 1.4) ------------------------------------------------------
+
+    /** Container item movements matching the filter (theft tracking). */
+    CompletableFuture<List<RockItemLogEntry>> queryItems(LogQuery query);
+
+    /** Inspector: full block history at one position, newest first. */
+    default CompletableFuture<List<RockWorldLogEntry>> inspect(UUID worldId, int x, int y, int z, int limit) {
+        return query(LogQuery.builder().world(worldId).around(x, y, z, 0).limit(limit).build());
+    }
+
+    /** Dry run of {@link #rollback}: what would be reverted, without applying. */
+    CompletableFuture<RollbackPreview> previewRollback(LogQuery query);
 }
