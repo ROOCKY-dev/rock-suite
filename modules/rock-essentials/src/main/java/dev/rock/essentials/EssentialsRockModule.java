@@ -13,7 +13,7 @@ public final class EssentialsRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-essentials", "Rock Essentials", "1.4.0", "1.4",
+                "rock-essentials", "Rock Essentials", "1.4.1", "1.4",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }

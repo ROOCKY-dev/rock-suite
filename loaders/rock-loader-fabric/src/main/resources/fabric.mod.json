@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "rock_suite",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "name": "ROCK SUITE",
   "description": "Cross-platform Minecraft server management platform.",
   "authors": [

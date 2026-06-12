@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 class MigrationRollbackRunnerTest {
 
     /** Latest migration version in db/migration — bump when adding V###s. */
-    private static final int TIP = 12;
+    private static final int TIP = 13;
 
     @TempDir
     Path tempDir;
@@ -66,30 +66,40 @@ class MigrationRollbackRunnerTest {
         }
     }
 
+    private boolean worldLogHasSeqColumn() throws Exception {
+        try (Connection c = dataSource.getConnection();
+                Statement s = c.createStatement()) {
+            s.executeQuery("SELECT seq FROM rock_world_log LIMIT 1").close();
+            return true;
+        } catch (java.sql.SQLException e) {
+            return false;
+        }
+    }
+
     @Test
-    void rollbackOfTipRemovesTablesAndHistoryRow() throws Exception {
-        assertTrue(tables().contains("rock_item_log"));
+    void rollbackOfTipRemovesItsChangesAndHistoryRow() throws Exception {
+        assertTrue(worldLogHasSeqColumn());
         int before = historyCount();
 
         rollback.rollback(TIP);
 
-        assertFalse(tables().contains("rock_item_log"));
+        assertFalse(worldLogHasSeqColumn(), "V013's seq column dropped");
         assertEquals(before - 1, historyCount());
         // Earlier migrations untouched.
         assertTrue(tables().contains("rock_players"));
-        assertTrue(tables().contains("rock_homes"));
+        assertTrue(tables().contains("rock_item_log"));
     }
 
     @Test
     void rollbackThenReMigrateReachesSameSchema() throws Exception {
         rollback.rollback(TIP);
         rollback.rollback(TIP - 1);
-        assertFalse(tables().contains("rock_homes"));
+        assertFalse(tables().contains("rock_item_log"));
 
         new DataMigrator(dataSource).migrate();
 
-        assertTrue(tables().contains("rock_homes"));
         assertTrue(tables().contains("rock_item_log"));
+        assertTrue(worldLogHasSeqColumn());
     }
 
     @Test

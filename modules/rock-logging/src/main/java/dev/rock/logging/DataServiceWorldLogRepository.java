@@ -37,9 +37,15 @@ public final class DataServiceWorldLogRepository implements WorldLogRepository {
 
     private static final String INSERT = """
             INSERT INTO rock_world_log
-                (id, actor, fake_actor, world_id, x, y, z, action, block_before, block_after, ts, rolled_back)
-            VALUES (:id, :actor, :fake, :world, :x, :y, :z, :action, :before, :after, :ts, :rb)
+                (id, actor, fake_actor, world_id, x, y, z, action, block_before, block_after, ts, rolled_back, seq)
+            VALUES (:id, :actor, :fake, :world, :x, :y, :z, :action, :before, :after, :ts, :rb, :seq)
             """;
+
+    // Monotonic write sequence: the ORDER BY tiebreaker for entries sharing a
+    // millisecond (same-tick changes). Seeded from wall time so it stays
+    // monotonic across restarts.
+    private static final java.util.concurrent.atomic.AtomicLong SEQUENCE =
+            new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis() * 1_000_000L);
 
     private final DataService data;
 
@@ -62,6 +68,7 @@ public final class DataServiceWorldLogRepository implements WorldLogRepository {
         params.put("after", entry.blockAfter());
         params.put("ts", entry.timestamp().toEpochMilli());
         params.put("rb", entry.rolledBack() ? 1 : 0);
+        params.put("seq", SEQUENCE.incrementAndGet());
         return params;
     }
 
@@ -113,7 +120,8 @@ public final class DataServiceWorldLogRepository implements WorldLogRepository {
             sql.append(" AND rolled_back = :rb");
             params.put("rb", rolledBack ? 1 : 0);
         }
-        sql.append(" ORDER BY ts ").append(oldestFirst ? "ASC" : "DESC");
+        String direction = oldestFirst ? "ASC" : "DESC";
+        sql.append(" ORDER BY ts ").append(direction).append(", seq ").append(direction);
         sql.append(" LIMIT :limit");
         params.put("limit", query.limit());
         return data.query(sql.toString(), params, ENTRY_MAPPER);
