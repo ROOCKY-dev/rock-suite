@@ -3,10 +3,13 @@ package dev.rock.permissions;
 import dev.rock.api.annotations.RockInternal;
 import dev.rock.api.data.DataService;
 import dev.rock.api.data.RowMapper;
+import dev.rock.api.domain.ContextSet;
 import dev.rock.api.domain.PermissionState;
 import dev.rock.api.domain.RockGroup;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -39,17 +42,19 @@ public final class DataServicePermissionRepository implements PermissionReposito
                 groups.put(group.id(), group);
             }
 
-            Map<UUID, Map<String, PermissionState>> groupPerms = new HashMap<>();
-            tx.query("SELECT group_id, node, state FROM rock_group_permissions", Map.of(), row -> {
-                groupPerms.computeIfAbsent(row.getUuid("group_id"), k -> new HashMap<>())
-                        .put(row.getString("node"), PermissionState.valueOf(row.getString("state")));
+            Map<UUID, List<PermNode>> groupPerms = new HashMap<>();
+            tx.query("SELECT group_id, node, context, state, expires FROM rock_group_permissions", Map.of(), row -> {
+                groupPerms.computeIfAbsent(row.getUuid("group_id"), k -> new ArrayList<>())
+                        .add(new PermNode(row.getString("node"), ContextSet.deserialize(row.getString("context")),
+                                PermissionState.valueOf(row.getString("state")), row.getInstant("expires")));
                 return null;
             });
 
-            Map<UUID, Map<String, PermissionState>> playerPerms = new HashMap<>();
-            tx.query("SELECT player_id, node, state FROM rock_player_permissions", Map.of(), row -> {
-                playerPerms.computeIfAbsent(row.getUuid("player_id"), k -> new HashMap<>())
-                        .put(row.getString("node"), PermissionState.valueOf(row.getString("state")));
+            Map<UUID, List<PermNode>> playerPerms = new HashMap<>();
+            tx.query("SELECT player_id, node, context, state, expires FROM rock_player_permissions", Map.of(), row -> {
+                playerPerms.computeIfAbsent(row.getUuid("player_id"), k -> new ArrayList<>())
+                        .add(new PermNode(row.getString("node"), ContextSet.deserialize(row.getString("context")),
+                                PermissionState.valueOf(row.getString("state")), row.getInstant("expires")));
                 return null;
             });
 
@@ -60,25 +65,53 @@ public final class DataServicePermissionRepository implements PermissionReposito
                 return null;
             });
 
-            return new Snapshot(groups, groupPerms, playerPerms, playerGroups);
+            Map<UUID, Map<String, String>> playerOptions = new HashMap<>();
+            tx.query("SELECT player_id, opt_key, opt_value FROM rock_player_options", Map.of(), row -> {
+                playerOptions.computeIfAbsent(row.getUuid("player_id"), k -> new HashMap<>())
+                        .put(row.getString("opt_key"), row.getString("opt_value"));
+                return null;
+            });
+
+            Map<UUID, Map<String, String>> groupOptions = new HashMap<>();
+            tx.query("SELECT group_id, opt_key, opt_value FROM rock_group_options", Map.of(), row -> {
+                groupOptions.computeIfAbsent(row.getUuid("group_id"), k -> new HashMap<>())
+                        .put(row.getString("opt_key"), row.getString("opt_value"));
+                return null;
+            });
+
+            return new Snapshot(groups, groupPerms, playerPerms, playerGroups, playerOptions, groupOptions);
         });
     }
 
-    @Override
-    public CompletableFuture<Void> savePlayerPermission(UUID playerId, String node, PermissionState state) {
+    private CompletableFuture<Void> savePermission(String table, String idColumn, UUID subjectId,
+            String node, ContextSet context, PermissionState state, Instant expires) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", subjectId.toString());
+        params.put("node", node);
+        params.put("ctx", context.serialize());
+        params.put("state", state.name());
+        params.put("expires", expires == null ? null : expires.toEpochMilli());
         return data.inTransaction(tx -> {
-            tx.update("DELETE FROM rock_player_permissions WHERE player_id = :p AND node = :n",
-                    Map.of("p", playerId.toString(), "n", node));
-            tx.update("INSERT INTO rock_player_permissions (player_id, node, state) VALUES (:p, :n, :s)",
-                    Map.of("p", playerId.toString(), "n", node, "s", state.name()));
+            tx.update("DELETE FROM " + table + " WHERE " + idColumn + " = :id AND node = :node AND context = :ctx",
+                    Map.of("id", subjectId.toString(), "node", node, "ctx", context.serialize()));
+            tx.update("INSERT INTO " + table + " (" + idColumn + ", node, context, state, expires)"
+                    + " VALUES (:id, :node, :ctx, :state, :expires)", params);
             return null;
         });
     }
 
     @Override
-    public CompletableFuture<Void> deletePlayerPermission(UUID playerId, String node) {
-        return data.update("DELETE FROM rock_player_permissions WHERE player_id = :p AND node = :n",
-                Map.of("p", playerId.toString(), "n", node)).thenApply(rows -> null);
+    public CompletableFuture<Void> savePlayerPermission(
+            UUID playerId, String node, ContextSet context, PermissionState state, Instant expires) {
+        return savePermission("rock_player_permissions", "player_id", playerId, node, context, state, expires);
+    }
+
+    @Override
+    public CompletableFuture<Void> deletePlayerPermission(UUID playerId, String node, ContextSet context) {
+        return data.update(
+                "DELETE FROM rock_player_permissions WHERE player_id = :p AND node = :n AND context = :ctx",
+                Map.of("p", playerId.toString(), "n", node, "ctx", context.serialize()))
+                .thenApply(rows -> null);
     }
 
     @Override
@@ -92,14 +125,9 @@ public final class DataServicePermissionRepository implements PermissionReposito
     }
 
     @Override
-    public CompletableFuture<Void> saveGroupPermission(UUID groupId, String node, PermissionState state) {
-        return data.inTransaction(tx -> {
-            tx.update("DELETE FROM rock_group_permissions WHERE group_id = :g AND node = :n",
-                    Map.of("g", groupId.toString(), "n", node));
-            tx.update("INSERT INTO rock_group_permissions (group_id, node, state) VALUES (:g, :n, :s)",
-                    Map.of("g", groupId.toString(), "n", node, "s", state.name()));
-            return null;
-        });
+    public CompletableFuture<Void> saveGroupPermission(
+            UUID groupId, String node, ContextSet context, PermissionState state, Instant expires) {
+        return savePermission("rock_group_permissions", "group_id", groupId, node, context, state, expires);
     }
 
     @Override
@@ -122,5 +150,37 @@ public final class DataServicePermissionRepository implements PermissionReposito
                 ORDER BY g.priority, g.name
                 """,
                 Map.of("p", playerId.toString()), GROUP_MAPPER);
+    }
+
+    private CompletableFuture<Void> saveOption(String table, String idColumn, UUID subjectId,
+            String key, String value) {
+        return data.inTransaction(tx -> {
+            tx.update("DELETE FROM " + table + " WHERE " + idColumn + " = :id AND opt_key = :k",
+                    Map.of("id", subjectId.toString(), "k", key));
+            tx.update("INSERT INTO " + table + " (" + idColumn + ", opt_key, opt_value) VALUES (:id, :k, :v)",
+                    Map.of("id", subjectId.toString(), "k", key, "v", value));
+            return null;
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> savePlayerOption(UUID playerId, String key, String value) {
+        return saveOption("rock_player_options", "player_id", playerId, key, value);
+    }
+
+    @Override
+    public CompletableFuture<Void> saveGroupOption(UUID groupId, String key, String value) {
+        return saveOption("rock_group_options", "group_id", groupId, key, value);
+    }
+
+    @Override
+    public CompletableFuture<Integer> purgeExpired(Instant now) {
+        return data.inTransaction(tx -> {
+            int purged = tx.update("DELETE FROM rock_player_permissions WHERE expires IS NOT NULL AND expires <= :now",
+                    Map.of("now", now.toEpochMilli()));
+            purged += tx.update("DELETE FROM rock_group_permissions WHERE expires IS NOT NULL AND expires <= :now",
+                    Map.of("now", now.toEpochMilli()));
+            return purged;
+        });
     }
 }

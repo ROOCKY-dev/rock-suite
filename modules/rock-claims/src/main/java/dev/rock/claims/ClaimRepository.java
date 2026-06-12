@@ -1,5 +1,6 @@
 package dev.rock.claims;
 
+import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.RockClaim;
 import dev.rock.api.domain.owner.OwnerReference;
@@ -32,4 +33,10 @@ public interface ClaimRepository {
 
     /** claimId → (playerId → role) for all claims (index warm-up). */
     CompletableFuture<Map<UUID, Map<UUID, ClaimRole>>> allMembers();
+
+    /** Persists a per-claim flag toggle (stored in rock_metadata, DMS extension table). */
+    CompletableFuture<Void> saveFlag(UUID claimId, ClaimFlag flag, boolean value);
+
+    /** claimId → explicitly-set flags for all claims (index warm-up). */
+    CompletableFuture<Map<UUID, Map<ClaimFlag, Boolean>>> allFlags();
 }

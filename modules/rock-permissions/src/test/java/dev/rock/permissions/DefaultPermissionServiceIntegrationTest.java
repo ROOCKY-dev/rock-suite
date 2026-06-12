@@ -99,7 +99,7 @@ class DefaultPermissionServiceIntegrationTest {
         service.assignGroup(player, member.id()).join();
         service.assignGroup(player, admin.id()).join();
         new DataServicePermissionRepository(data)
-                .saveGroupPermission(member.id(), "rock.economy.withdraw", PermissionState.DENY).join();
+                .saveGroupPermission(member.id(), "rock.economy.withdraw", dev.rock.api.domain.ContextSet.empty(), PermissionState.DENY, null).join();
         service.reload().join();
 
         assertTrue(service.has(player, "rock.economy.withdraw"));
@@ -112,7 +112,7 @@ class DefaultPermissionServiceIntegrationTest {
         RockGroup beta = service.createGroup("Beta", 50).join();
         service.grantGroup(alpha.id(), "rock.claims.delete").join();
         new DataServicePermissionRepository(data)
-                .saveGroupPermission(beta.id(), "rock.claims.delete", PermissionState.DENY).join();
+                .saveGroupPermission(beta.id(), "rock.claims.delete", dev.rock.api.domain.ContextSet.empty(), PermissionState.DENY, null).join();
         service.assignGroup(player, alpha.id()).join();
         service.assignGroup(player, beta.id()).join();
         service.reload().join();
@@ -135,6 +135,59 @@ class DefaultPermissionServiceIntegrationTest {
         service.unset(player, "rock.claims.create").join();
 
         assertEquals(PermissionState.UNSET, service.check(player, "rock.claims.create"));
+    }
+
+    @Test
+    void contextScopedPermissionsApplyOnlyInContext() {
+        dev.rock.api.domain.ContextSet nether = dev.rock.api.domain.ContextSet.of("world", "nether");
+        service.grant(player, "rock.claims.create", nether).join();
+
+        assertFalse(service.has(player, "rock.claims.create"), "global query: nether-scoped node inert");
+        assertTrue(service.has(player, "rock.claims.create", nether), "applies in its context");
+        assertFalse(service.has(player, "rock.claims.create",
+                dev.rock.api.domain.ContextSet.of("world", "overworld")), "wrong world: inert");
+    }
+
+    @Test
+    void moreSpecificContextWinsOverGlobal() {
+        dev.rock.api.domain.ContextSet creativeWorld = dev.rock.api.domain.ContextSet.of("world", "creative");
+        service.grant(player, "rock.economy.withdraw").join();
+        service.deny(player, "rock.economy.withdraw", creativeWorld).join();
+
+        assertTrue(service.has(player, "rock.economy.withdraw"), "global grant holds elsewhere");
+        assertFalse(service.has(player, "rock.economy.withdraw", creativeWorld),
+                "specific deny overrides global allow in its context");
+    }
+
+    @Test
+    void temporaryPermissionExpires() throws Exception {
+        service.grantTemporary(player, "rock.event.vip", java.time.Duration.ofMillis(80)).join();
+        assertTrue(service.has(player, "rock.event.vip"), "active before expiry");
+
+        Thread.sleep(120);
+
+        assertFalse(service.has(player, "rock.event.vip"), "evaluation ignores expired nodes");
+        // The sweep would also purge the row; evaluation alone must already be correct.
+    }
+
+    @Test
+    void optionsResolvePlayerFirstThenGroupOrder() {
+        RockGroup member = service.createGroup("Member", 100).join();
+        RockGroup admin = service.createGroup("Admin", 10).join();
+        service.assignGroup(player, member.id()).join();
+        service.assignGroup(player, admin.id()).join();
+        service.setGroupOption(member.id(), "prefix", "[Member]").join();
+        service.setGroupOption(admin.id(), "prefix", "[Admin]").join();
+        service.setGroupOption(member.id(), "rock.essentials.homes.max", "3").join();
+
+        assertEquals("[Admin]", service.option(player, "prefix").orElseThrow(),
+                "higher-priority group's prefix wins");
+        assertEquals(3, service.intOption(player, "rock.essentials.homes.max").orElseThrow());
+
+        service.setPlayerOption(player, "prefix", "[Founder]").join();
+        assertEquals("[Founder]", service.option(player, "prefix").orElseThrow(), "player option overrides");
+        assertTrue(service.option(player, "suffix").isEmpty());
+        assertTrue(service.intOption(player, "prefix").isEmpty(), "non-numeric option yields empty int");
     }
 
     @Test

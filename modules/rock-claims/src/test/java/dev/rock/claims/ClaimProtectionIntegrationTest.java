@@ -113,9 +113,34 @@ class ClaimProtectionIntegrationTest {
 
     @Test
     void fakePlayersAndActorlessChangesAreDeniedInClaims() {
-        assertFalse(breakAllowed(bob, true, 5, 5), "fake player (machine) denied");
-        assertFalse(breakAllowed(null, false, 5, 5), "actor-less (mob/environment) denied");
+        assertFalse(breakAllowed(bob, true, 5, 5), "fake player (machine) denied by default");
+        assertFalse(breakAllowed(null, false, 5, 5), "actor-less (mob/environment) denied by default");
         assertTrue(breakAllowed(null, false, 500, 500), "actor-less in wilderness fine");
+    }
+
+    @Test
+    void flagsOptIntoMachineAndMobChanges() {
+        service.setFlag(claim.id(), dev.rock.api.domain.ClaimFlag.FAKE_PLAYERS, true).join();
+        assertTrue(breakAllowed(bob, true, 5, 5), "FAKE_PLAYERS=true lets machines work");
+
+        service.setFlag(claim.id(), dev.rock.api.domain.ClaimFlag.MOB_GRIEFING, true).join();
+        assertTrue(breakAllowed(null, false, 5, 5), "MOB_GRIEFING=true lets environment changes through");
+
+        service.setFlag(claim.id(), dev.rock.api.domain.ClaimFlag.FAKE_PLAYERS, false).join();
+        assertFalse(breakAllowed(bob, true, 5, 5), "flag flip applies immediately");
+    }
+
+    @Test
+    void flagsSurviveCacheRebuild() {
+        service.setFlag(claim.id(), dev.rock.api.domain.ClaimFlag.PVP, true).join();
+
+        DefaultClaimService restarted =
+                new DefaultClaimService(new DataServiceClaimRepository(data), eventBus);
+        restarted.onEnable();
+
+        RockClaim cached = restarted.claimAtCached(world, 5, 64, 5).orElseThrow();
+        assertTrue(restarted.flag(cached, dev.rock.api.domain.ClaimFlag.PVP), "persisted via rock_metadata");
+        assertFalse(restarted.flag(cached, dev.rock.api.domain.ClaimFlag.EXPLOSIONS), "unset flag → default");
     }
 
     @Test

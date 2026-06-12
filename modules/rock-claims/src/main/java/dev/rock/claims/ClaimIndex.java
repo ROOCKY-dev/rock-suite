@@ -1,6 +1,7 @@
 package dev.rock.claims;
 
 import dev.rock.api.annotations.RockInternal;
+import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.RockClaim;
 import java.util.List;
@@ -20,12 +21,16 @@ final class ClaimIndex {
 
     private final Map<UUID, List<RockClaim>> byWorld = new ConcurrentHashMap<>();
     private final Map<UUID, Map<UUID, ClaimRole>> membersByClaim = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<ClaimFlag, Boolean>> flagsByClaim = new ConcurrentHashMap<>();
 
-    void load(List<RockClaim> claims, Map<UUID, Map<UUID, ClaimRole>> members) {
+    void load(List<RockClaim> claims, Map<UUID, Map<UUID, ClaimRole>> members,
+            Map<UUID, Map<ClaimFlag, Boolean>> flags) {
         byWorld.clear();
         membersByClaim.clear();
+        flagsByClaim.clear();
         claims.forEach(this::put);
         members.forEach((claimId, m) -> membersByClaim.put(claimId, new ConcurrentHashMap<>(m)));
+        flags.forEach((claimId, f) -> flagsByClaim.put(claimId, new ConcurrentHashMap<>(f)));
     }
 
     void put(RockClaim claim) {
@@ -77,5 +82,15 @@ final class ClaimIndex {
     Map<UUID, ClaimRole> membersOf(UUID claimId) {
         Map<UUID, ClaimRole> members = membersByClaim.get(claimId);
         return members == null ? Map.of() : Map.copyOf(members);
+    }
+
+    void putFlag(UUID claimId, ClaimFlag flag, boolean value) {
+        flagsByClaim.computeIfAbsent(claimId, k -> new ConcurrentHashMap<>()).put(flag, value);
+    }
+
+    boolean flag(UUID claimId, ClaimFlag flag) {
+        Map<ClaimFlag, Boolean> flags = flagsByClaim.get(claimId);
+        Boolean explicit = flags == null ? null : flags.get(flag);
+        return explicit != null ? explicit : flag.defaultValue();
     }
 }

@@ -202,6 +202,25 @@ public final class TestBench {
         check(bobTrusted, "Bob may build after Alice trusts him with BUILD");
         claims.untrust(base.id(), bob).join();
 
+        // Claim flags (1.2): Alice opts her claim into automation.
+        claims.setFlag(base.id(), dev.rock.api.domain.ClaimFlag.FAKE_PLAYERS, true).join();
+        boolean machineAllowed = worldEvents.blockChange(bob, true, world, 6, 64, 6,
+                BlockChangeType.PLACE, "minecraft:air", "minecraft:quarry");
+        check(machineAllowed, "FAKE_PLAYERS flag lets Alice's machines run");
+        claims.setFlag(base.id(), dev.rock.api.domain.ClaimFlag.FAKE_PLAYERS, false).join();
+
+        // Permission contexts + meta + temporary (1.2)
+        var nether = dev.rock.api.domain.ContextSet.of("world", "nether");
+        permissions.grant(bob, "rock.claims.create", nether).join();
+        check(!permissions.has(bob, "rock.claims.create"), "context-scoped grant inert globally");
+        check(permissions.has(bob, "rock.claims.create", nether), "context-scoped grant applies in-world");
+        permissions.setPlayerOption(alice, "prefix", "[Founder]").join();
+        check(permissions.option(alice, "prefix").orElseThrow().equals("[Founder]"), "prefix meta resolves");
+        permissions.grantTemporary(bob, "rock.event.vip", java.time.Duration.ofMillis(60)).join();
+        check(permissions.has(bob, "rock.event.vip"), "temporary grant active");
+        Thread.sleep(100);
+        check(!permissions.has(bob, "rock.event.vip"), "temporary grant expired");
+
         // ---------------------------------------------------------------
         log.info("[4c] Block logging: query Alice's break, then roll the world back");
         Map<String, String> fakeWorld = new java.util.concurrent.ConcurrentHashMap<>();
@@ -229,11 +248,12 @@ public final class TestBench {
 
         int rolledBack = worldLog.rollback(
                 LogQuery.builder().world(world).around(5, 64, 5, 2).build()).join();
-        check(rolledBack == 2, "rollback reverted both logged breaks at the position");
+        check(rolledBack == 3, "rollback reverted the two breaks and the machine place in the area");
         check(fakeWorld.get("5,64,5").equals("minecraft:stone"), "WorldMutator restored the original block");
+        check(fakeWorld.get("6,64,6").equals("minecraft:air"), "machine-placed block removed by rollback");
 
         int restored = worldLog.restore(LogQuery.builder().world(world).around(5, 64, 5, 2).build()).join();
-        check(restored == 2, "restore re-applied the rolled-back changes");
+        check(restored == 3, "restore re-applied the rolled-back changes");
         check(fakeWorld.get("5,64,5").equals("minecraft:air"), "restore re-applied the break");
 
         // ---------------------------------------------------------------

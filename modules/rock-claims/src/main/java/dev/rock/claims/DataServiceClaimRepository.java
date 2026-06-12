@@ -3,6 +3,7 @@ package dev.rock.claims;
 import dev.rock.api.annotations.RockInternal;
 import dev.rock.api.data.DataService;
 import dev.rock.api.data.RowMapper;
+import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.ClaimType;
 import dev.rock.api.domain.RockClaim;
@@ -123,6 +124,44 @@ public final class DataServiceClaimRepository implements ClaimRepository {
                     Map<UUID, ClaimRole> members = new HashMap<>();
                     entries.forEach(e -> members.put(e.getKey(), e.getValue()));
                     return members;
+                });
+    }
+
+    @Override
+    public CompletableFuture<Void> saveFlag(UUID claimId, ClaimFlag flag, boolean value) {
+        String key = "flag." + flag.name();
+        return data.inTransaction(tx -> {
+            tx.update("""
+                    DELETE FROM rock_metadata
+                    WHERE entity_id = :id AND namespace = 'rock.claims' AND meta_key = :key
+                    """,
+                    Map.of("id", claimId.toString(), "key", key));
+            tx.update("""
+                    INSERT INTO rock_metadata (entity_id, entity_type, namespace, meta_key, meta_value, last_modified)
+                    VALUES (:id, 'CLAIM', 'rock.claims', :key, :value, :now)
+                    """,
+                    Map.of("id", claimId.toString(), "key", key, "value", Boolean.toString(value),
+                            "now", System.currentTimeMillis()));
+            return null;
+        });
+    }
+
+    @Override
+    public CompletableFuture<Map<UUID, Map<ClaimFlag, Boolean>>> allFlags() {
+        return data.query("""
+                SELECT entity_id, meta_key, meta_value FROM rock_metadata
+                WHERE namespace = 'rock.claims' AND meta_key LIKE 'flag.%'
+                """, Map.of(), row -> new Object[] {
+                        row.getUuid("entity_id"),
+                        ClaimFlag.valueOf(row.getString("meta_key").substring("flag.".length())),
+                        Boolean.parseBoolean(row.getString("meta_value"))})
+                .thenApply(rows -> {
+                    Map<UUID, Map<ClaimFlag, Boolean>> all = new HashMap<>();
+                    for (Object[] row : rows) {
+                        all.computeIfAbsent((UUID) row[0], k -> new HashMap<>())
+                                .put((ClaimFlag) row[1], (Boolean) row[2]);
+                    }
+                    return all;
                 });
     }
 

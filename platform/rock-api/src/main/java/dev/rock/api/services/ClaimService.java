@@ -1,5 +1,6 @@
 package dev.rock.api.services;
 
+import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.ClaimType;
 import dev.rock.api.domain.RockClaim;
@@ -52,4 +53,12 @@ public interface ClaimService extends RockService {
      * The claim owner (PLAYER-owned claims) is implicitly MANAGER.
      */
     Optional<ClaimRole> effectiveRole(RockClaim claim, UUID playerId);
+
+    // --- Flags (since 1.2) --------------------------------------------------
+
+    /** Sets a per-claim rule toggle; persisted via platform metadata. */
+    CompletableFuture<Void> setFlag(UUID claimId, ClaimFlag flag, boolean value);
+
+    /** Cache-backed flag read, tick-thread safe; falls back to the flag default. */
+    boolean flag(RockClaim claim, ClaimFlag flag);
 }

@@ -46,6 +46,14 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(this::start);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> stop());
 
+        // K2: route fabric-permissions-api checks into rock-permissions.
+        // Optional dependency — skip cleanly when the API mod is absent.
+        try {
+            FabricPermissionsBridge.register(() -> boot);
+        } catch (NoClassDefFoundError e) {
+            log.info("fabric-permissions-api not installed; permission bridging disabled");
+        }
+
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             LoaderBootstrap.BootResult current = boot;
             if (current != null) {

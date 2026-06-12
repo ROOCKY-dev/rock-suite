@@ -13,7 +13,7 @@ public final class PermissionsRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-permissions", "Rock Permissions", "1.1.0", "1.1",
+                "rock-permissions", "Rock Permissions", "1.2.0", "1.2",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data"));
     }

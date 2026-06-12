@@ -1,6 +1,7 @@
 package dev.rock.claims;
 
 import dev.rock.api.annotations.RockInternal;
+import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.ClaimType;
 import dev.rock.api.domain.RockClaim;
@@ -47,12 +48,13 @@ public final class DefaultClaimService implements ClaimService, LifecycleAware {
         // Warm the tick-thread-safe index (TRS §3: protection lookups never hit the DB).
         List<RockClaim> claims = repository.findAllActive().join();
         Map<UUID, Map<UUID, ClaimRole>> members = repository.allMembers().join();
-        index.load(claims, members);
+        Map<UUID, Map<ClaimFlag, Boolean>> flags = repository.allFlags().join();
+        index.load(claims, members, flags);
     }
 
     @Override
     public void onDisable() {
-        index.load(List.of(), Map.of());
+        index.load(List.of(), Map.of(), Map.of());
     }
 
     /** Raised when a claim operation is vetoed or invalid. */
@@ -177,5 +179,22 @@ public final class DefaultClaimService implements ClaimService, LifecycleAware {
             return Optional.of(ClaimRole.MANAGER);
         }
         return index.memberRole(claim.id(), playerId);
+    }
+
+    // --- Flags (1.2) ---------------------------------------------------------
+
+    @Override
+    public CompletableFuture<Void> setFlag(UUID claimId, ClaimFlag flag, boolean value) {
+        return repository.findById(claimId).thenCompose(found -> {
+            found.filter(RockClaim::active).orElseThrow(
+                    () -> new ClaimRejectedException("No active claim with id " + claimId));
+            return repository.saveFlag(claimId, flag, value)
+                    .thenRun(() -> index.putFlag(claimId, flag, value));
+        });
+    }
+
+    @Override
+    public boolean flag(RockClaim claim, ClaimFlag flag) {
+        return index.flag(claim.id(), flag);
     }
 }

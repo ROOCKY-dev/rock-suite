@@ -1,6 +1,7 @@
 package dev.rock.claims;
 
 import dev.rock.api.annotations.RockInternal;
+import dev.rock.api.domain.ClaimFlag;
 import dev.rock.api.domain.ClaimRole;
 import dev.rock.api.domain.RockClaim;
 import dev.rock.api.event.EventBus;
@@ -21,10 +22,10 @@ import java.util.Optional;
  * Runs at EARLY priority on the tick thread against the in-memory claim
  * index — no I/O, within the TRS §3 event budget.
  *
- * <p>Policy v1.1: inside an active claim — block changes need BUILD,
- * containers need CONTAINER, other interactions need ACCESS. Actor-less
- * changes (mobs, environment) and fake players (machines) are denied;
- * a fake-player allow flag arrives with claim flags (roadmap P1).
+ * <p>Policy: inside an active claim — block changes need BUILD, containers
+ * need CONTAINER, other interactions need ACCESS. Actor-less changes (mobs,
+ * environment) are governed by the MOB_GRIEFING flag; fake players (machines)
+ * by the FAKE_PLAYERS flag (both default deny — ClaimFlag defaults).
  */
 @RockInternal
 @Singleton
@@ -57,8 +58,16 @@ public final class ClaimProtectionListener implements LifecycleAware {
         if (claim.isEmpty()) {
             return;
         }
-        if (event.actor() == null || event.fakePlayer()) {
-            event.cancel();
+        if (event.actor() == null) {
+            if (!claims.flag(claim.get(), ClaimFlag.MOB_GRIEFING)) {
+                event.cancel();
+            }
+            return;
+        }
+        if (event.fakePlayer()) {
+            if (!claims.flag(claim.get(), ClaimFlag.FAKE_PLAYERS)) {
+                event.cancel();
+            }
             return;
         }
         if (!hasRole(claim.get(), event.actor(), ClaimRole.BUILD)) {
@@ -72,7 +81,9 @@ public final class ClaimProtectionListener implements LifecycleAware {
             return;
         }
         if (event.fakePlayer()) {
-            event.cancel();
+            if (!claims.flag(claim.get(), ClaimFlag.FAKE_PLAYERS)) {
+                event.cancel();
+            }
             return;
         }
         ClaimRole required = switch (event.type()) {
