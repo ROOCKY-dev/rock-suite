@@ -129,15 +129,16 @@ overlay with ghost-block rollback preview, in-game permission editor.
   itself ships **v2.0** in its own repo, after K3 packaging.
 - Law: vanilla clients always retain 100% functionality via commands.
 
-### Command aliases — admin speed QoL (queued by Project Owner, target v1.6)
-Short root commands mapping onto the /rock tree: `/ban` → `/rock ban`,
-`/mute`, `/warn`, `/home`, `/pay`, … and `/r` as a `/rock` shorthand.
-- Alias table lives in config (`rock.toml [aliases]`) with sane defaults and
-  per-alias disable — servers can dodge collisions with other mods' commands.
-- Implementation: CommandService gains alias registration; loader adapters
-  register each alias as a real root command delegating into dispatch()
-  (needs the brigadier wiring from K3 packaging — hence v1.6 with it).
-- Permission checks unchanged: an alias is pure routing, never a bypass.
+### Command aliases — admin speed QoL ✅ DONE (v1.6.0)
+Short root commands mapping onto the /rock tree: `/ban`, `/mute`, `/home`,
+`/pay`, `/r` (bare `/rock` shorthand), etc.
+- Config-driven table (`rock.toml [aliases]`): defaults in `AliasConfig`,
+  master `enabled` switch, per-alias disable (`home = false`), custom mappings
+  (`mywarp = ["warp"]`). Resolved over defaults at boot.
+- CommandService gained `registerAlias`/`dispatchAlias`; the real Fabric
+  adapter registers a brigadier root for every default name and routes through
+  `dispatchAlias` (expansion resolved from the live config table).
+- Permission unchanged: an alias is pure routing, never a bypass (tested).
 
 ## 6. Platform multipliers (unchanged priorities)
 - **RMG migration importers** — now including modded sources: FTB Chunks/
@@ -155,5 +156,8 @@ Short root commands mapping onto the /rock tree: `/ban` → `/rock ban`,
 4. **v1.4.0:** rock-moderation, logging P2 (containers, inspector, preview),
    K3 real packaging → first on-server release.
 5. **v1.5.0:** rock-backup, rock-metrics, webmap overlays, migration importers.
-6. **v1.6.0:** platform/rock-protocol (client/web projection layer, RFC-001).
-7. **v2.0:** rock-client Tier 1 + rock-web, sharing the protocol layer.
+6. **v1.6.0:** ✅ config-driven aliases + platform/rock-protocol core (payload
+   model, codec, ProtocolHub per-player projection, capability handshake,
+   transport SPI — all tested with a fake client; no real client needed yet).
+7. **v2.0:** rock-client Tier 1 + rock-web, sharing the protocol layer; wire
+   the loader custom-payload channel + WebSocket transport to ProtocolHub.

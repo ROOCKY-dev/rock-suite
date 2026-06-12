@@ -26,6 +26,7 @@ public final class DefaultCommandService implements CommandService {
     private static final Logger log = LoggerFactory.getLogger(DefaultCommandService.class);
 
     private final Map<String, CommandSpec> commands = new ConcurrentHashMap<>();
+    private final Map<String, List<String>> aliases = new ConcurrentHashMap<>();
 
     private static String key(List<String> path) {
         return String.join(" ", path).toLowerCase();
@@ -75,5 +76,33 @@ public final class DefaultCommandService implements CommandService {
         List<CommandSpec> specs = new ArrayList<>(commands.values());
         specs.sort(Comparator.comparing(s -> key(s.path())));
         return List.copyOf(specs);
+    }
+
+    // --- Aliases (1.6) ------------------------------------------------------
+
+    @Override
+    public boolean registerAlias(String alias, List<String> expansion) {
+        return aliases.putIfAbsent(alias.toLowerCase(), List.copyOf(expansion)) == null;
+    }
+
+    @Override
+    public boolean unregisterAlias(String alias) {
+        return aliases.remove(alias.toLowerCase()) != null;
+    }
+
+    @Override
+    public Map<String, List<String>> aliases() {
+        return Map.copyOf(aliases);
+    }
+
+    @Override
+    public CommandResult dispatchAlias(CommandSender sender, String alias, List<String> args) {
+        List<String> expansion = aliases.get(alias.toLowerCase());
+        if (expansion == null) {
+            return dispatch(sender, args);
+        }
+        List<String> full = new ArrayList<>(expansion);
+        full.addAll(args);
+        return dispatch(sender, full);
     }
 }

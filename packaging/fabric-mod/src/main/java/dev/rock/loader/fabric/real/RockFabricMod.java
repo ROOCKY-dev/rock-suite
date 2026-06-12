@@ -7,6 +7,7 @@ import dev.rock.api.command.CommandService;
 import dev.rock.api.config.RockConfig;
 import dev.rock.api.events.world.BlockChangeType;
 import dev.rock.core.bootstrap.PlatformEnvironment;
+import dev.rock.core.command.AliasConfig;
 import dev.rock.core.config.TomlConfigEngine;
 import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
@@ -46,12 +47,13 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
             [database.pool]
             maximum-pool-size = 10
             minimum-idle = 2
-            """;
 
-    /** Short aliases delegating into the /rock tree (admin speed QoL). */
-    private static final List<String> PREFIX_ALIASES = List.of(
-            "sethome", "home", "homes", "warp", "tpa", "tpaccept", "tpdeny",
-            "pay", "balance", "baltop");
+            [aliases]
+            enabled = true
+            # Defaults cover /ban /mute /home /pay /balance /r etc.
+            # Disable one to dodge a collision:  home = false
+            # Add your own:                       mywarp = ["warp"]
+            """;
 
     private static final Logger log = LoggerFactory.getLogger(RockFabricMod.class);
 
@@ -105,39 +107,45 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
                     sender.getUUID(), sender.getScoreboardName(), message.signedContent());
         });
 
+        // Brigadier roots are static (registered before the platform boots), so
+        // register /rock plus the full universe of default alias names; whether
+        // each alias actually does anything is governed by config at dispatch
+        // time (AliasConfig, applied in start()).
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            dispatcher.register(rockCommand("rock", false));
-            dispatcher.register(rockCommand("r", false));
-            for (String alias : PREFIX_ALIASES) {
-                dispatcher.register(rockCommand(alias, true));
+            dispatcher.register(rockCommand("rock"));
+            for (String alias : AliasConfig.DEFAULTS.keySet()) {
+                if (!alias.equals("rock")) {
+                    dispatcher.register(rockCommand(alias));
+                }
             }
         });
     }
 
-    private LiteralArgumentBuilder<CommandSourceStack> rockCommand(String literal, boolean prefixWithLiteral) {
+    private LiteralArgumentBuilder<CommandSourceStack> rockCommand(String literal) {
         return Commands.literal(literal)
-                .executes(ctx -> execute(ctx.getSource(),
-                        prefixWithLiteral ? List.of(literal) : List.of()))
+                .executes(ctx -> execute(ctx.getSource(), literal, List.of()))
                 .then(Commands.argument("args", StringArgumentType.greedyString())
-                        .executes(ctx -> {
-                            List<String> words = new ArrayList<>();
-                            if (prefixWithLiteral) {
-                                words.add(literal);
-                            }
-                            words.addAll(Arrays.asList(
-                                    StringArgumentType.getString(ctx, "args").trim().split("\\s+")));
-                            return execute(ctx.getSource(), words);
-                        }));
+                        .executes(ctx -> execute(ctx.getSource(), literal,
+                                Arrays.asList(StringArgumentType.getString(ctx, "args").trim().split("\\s+")))));
     }
 
-    private int execute(CommandSourceStack source, List<String> words) {
+    private int execute(CommandSourceStack source, String literal, List<String> args) {
         LoaderBootstrap.BootResult current = boot;
         if (current == null) {
             source.sendSystemMessage(Component.literal("ROCK is still starting…"));
             return 0;
         }
         CommandService commands = current.platform().services().require(CommandService.class);
-        CommandResult result = commands.dispatch(new FabricSender(source, current), words);
+        FabricSender sender = new FabricSender(source, current);
+        CommandResult result;
+        if (literal.equals("rock")) {
+            result = commands.dispatch(sender, args);
+        } else if (commands.aliases().containsKey(literal)) {
+            result = commands.dispatchAlias(sender, literal, args);
+        } else {
+            sender.sendMessage("That alias is disabled. Use /rock …");
+            return 0;
+        }
         return result == CommandResult.SUCCESS ? 1 : 0;
     }
 
@@ -147,6 +155,10 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
                 .loadModuleConfig("rock", DEFAULT_CONFIG);
         DatabaseSettings settings = DatabaseSettings.fromConfig(config, environment.dataDirectory());
         boot = LoaderBootstrap.boot(environment, List.of(new RockDataModule(settings)));
+        // Config-driven aliases: resolve the [aliases] table over the defaults
+        // and register them into CommandService (the brigadier roots are
+        // already live and route through dispatchAlias).
+        AliasConfig.apply(config, boot.platform().services().require(CommandService.class));
         log.info("ROCK SUITE started on Fabric ({} — real adapter)", server.getServerVersion());
     }
 

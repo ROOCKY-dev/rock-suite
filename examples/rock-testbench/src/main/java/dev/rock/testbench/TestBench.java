@@ -415,6 +415,44 @@ public final class TestBench {
                 "legacy balance arrived as an audited SYSTEM grant");
 
         // ---------------------------------------------------------------
+        log.info("[5e] Command aliases: config-driven /ban /r routing (1.6)");
+        dev.rock.core.command.AliasConfig.apply(
+                services.require(dev.rock.api.config.ConfigEngine.class).parse(
+                        "[aliases]\nenabled = true\nhome = false\n"),
+                commands);
+        check(commands.aliases().containsKey("ban") && commands.aliases().get("ban").equals(List.of("ban")),
+                "/ban alias maps to /rock ban");
+        check(!commands.aliases().containsKey("home"), "home alias disabled via config");
+        permissions.grant(alice, "rock.admin.*").join();
+        check(commands.dispatchAlias(aliceSender, "r", List.of("modules")) == CommandResult.SUCCESS,
+                "/r modules routes into the /rock tree");
+
+        // ---------------------------------------------------------------
+        log.info("[5f] rock-protocol: per-player projection with a fake client (RFC-001, 1.6)");
+        permissions.grant(alice, "rock.client.*").join();
+        var hub = new dev.rock.protocol.ProtocolHub(eventBus, services);
+        hub.onEnable();
+        java.util.List<dev.rock.protocol.ProtocolMessage> aliceClient =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+        services.register(dev.rock.protocol.ProtocolTransport.class, (pid, frame) -> {
+            if (pid.equals(alice)) {
+                dev.rock.protocol.ProtocolCodec.decode(frame).ifPresent(aliceClient::add);
+            }
+        });
+        var welcome = hub.handshake(alice, new dev.rock.protocol.ProtocolMessage.Hello(
+                9, List.of("WALLET", "CLAIMS")));
+        check(welcome.protocolVersion() == dev.rock.protocol.ProtocolMessage.PROTOCOL_VERSION,
+                "protocol version negotiated down to the server's");
+        check(welcome.grantedCapabilities().contains("WALLET"), "WALLET capability granted by permission");
+        // A balance change for Alice projects to her fake client; Bob's doesn't.
+        var aliceAcct = economy.findAccount(new PlayerOwner(alice)).join().orElseThrow();
+        economy.grant(new PlayerOwner(alice), new BigDecimal("10.00"), "protocol test").join();
+        Thread.sleep(300);
+        check(aliceClient.stream().anyMatch(m -> m instanceof dev.rock.protocol.ProtocolMessage.Projection proj
+                && proj.type().equals("wallet.balance")), "Alice's client received a wallet.balance projection");
+        hub.onDisable();
+
+        // ---------------------------------------------------------------
         log.info("[6] Discord: identity link + queued send (no token → no-op gateway)");
         discord.link(alice, "alice#0001").join();
         check(discord.linkOf(alice).join().orElseThrow().linked(), "Alice linked to Discord");

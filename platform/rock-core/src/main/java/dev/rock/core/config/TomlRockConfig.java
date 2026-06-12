@@ -62,6 +62,12 @@ final class TomlRockConfig implements RockConfig {
 
     @Override
     public Optional<Boolean> getBoolean(String path) {
+        // Optional semantics: "present AND a boolean". A value of another type
+        // (e.g. an array) yields empty rather than throwing — lets callers probe
+        // "is this key a bool or a list?" without try/catch (used by aliases).
+        if (!toml.isBoolean(path)) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(toml.getBoolean(path));
     }
 

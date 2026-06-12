@@ -8,6 +8,7 @@ import dev.rock.api.command.CommandSender;
 import dev.rock.api.command.CommandSpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -82,6 +83,30 @@ class DefaultCommandServiceTest {
         }));
 
         assertEquals(CommandResult.FAILURE, commands.dispatch(new FakeSender(), List.of("boom")));
+    }
+
+    @Test
+    void aliasExpandsIntoTheRockTree() {
+        commands.register(new CommandSpec(List.of("ban"), "ban", "rock.moderation.ban",
+                ctx -> CommandResult.SUCCESS));
+        commands.registerAlias("ban", List.of("ban"));   // /ban x → /rock ban x
+        commands.registerAlias("r", List.of());           // /r ban x → /rock ban x
+
+        FakeSender admin = new FakeSender("rock.moderation.ban");
+        assertEquals(CommandResult.SUCCESS, commands.dispatchAlias(admin, "ban", List.of("Griefer")));
+        assertEquals(CommandResult.SUCCESS, commands.dispatchAlias(admin, "r", List.of("ban", "Griefer")));
+        assertEquals(Set.of("ban", "r"), commands.aliases().keySet());
+    }
+
+    @Test
+    void aliasStillEnforcesTheTargetPermission() {
+        commands.register(new CommandSpec(List.of("ban"), "ban", "rock.moderation.ban",
+                ctx -> CommandResult.SUCCESS));
+        commands.registerAlias("ban", List.of("ban"));
+
+        // An alias is pure routing — no permission bypass.
+        assertEquals(CommandResult.NO_PERMISSION,
+                commands.dispatchAlias(new FakeSender(), "ban", List.of("Griefer")));
     }
 
     @Test

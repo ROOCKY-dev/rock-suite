@@ -25,7 +25,7 @@ public final class BackupRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-backup", "Rock Backup", "1.5.0", "1.5",
+                "rock-backup", "Rock Backup", "1.6.0", "1.6",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core"));
     }

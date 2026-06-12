@@ -12,7 +12,7 @@ public final class MigrateRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-migrate", "Rock Migrate (RMG)", "1.5.0", "1.5",
+                "rock-migrate", "Rock Migrate (RMG)", "1.6.0", "1.6",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }

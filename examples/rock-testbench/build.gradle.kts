@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":rock-api"))
     implementation(project(":rock-core"))
     implementation(project(":rock-data"))
+    implementation(project(":rock-protocol"))
     implementation(libs.guice)
     implementation(libs.slf4j.api)
     runtimeOnly(project(":rock-permissions"))

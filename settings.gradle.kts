@@ -15,10 +15,11 @@ dependencyResolutionManagement {
 rootProject.name = "rock-suite"
 
 // Platform layer
-include(":rock-api", ":rock-core", ":rock-data")
+include(":rock-api", ":rock-core", ":rock-data", ":rock-protocol")
 project(":rock-api").projectDir = file("platform/rock-api")
 project(":rock-core").projectDir = file("platform/rock-core")
 project(":rock-data").projectDir = file("platform/rock-data")
+project(":rock-protocol").projectDir = file("platform/rock-protocol")
 
 // Loader layer — the ONLY projects permitted to reference loader APIs
 include(":loader-stubs", ":rock-loader-fabric", ":rock-loader-neoforge")
