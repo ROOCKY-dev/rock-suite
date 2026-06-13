@@ -12,7 +12,9 @@ import dev.rock.core.config.TomlConfigEngine;
 import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
 import dev.rock.data.RockDataModule;
-import java.util.ArrayList;
+import dev.rock.protocol.ProtocolHub;
+import dev.rock.protocol.ProtocolTransport;
+import dev.rock.protocol.RockProtocolModule;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -22,7 +24,9 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -119,6 +123,21 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
                 }
             }
         });
+
+        // rock-protocol on the wire: register the rock:protocol custom-payload
+        // channel both ways and route inbound frames into the ProtocolHub. The
+        // hub (a singleton in RockProtocolModule) and the outbound transport are
+        // wired in start(); registration here is init-time as Fabric requires.
+        PayloadTypeRegistry.playC2S().register(RockProtocolPayload.TYPE, RockProtocolPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(RockProtocolPayload.TYPE, RockProtocolPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(RockProtocolPayload.TYPE, (payload, context) -> {
+            LoaderBootstrap.BootResult current = boot;
+            if (current == null) {
+                return;
+            }
+            ProtocolHub hub = current.platform().injector().getInstance(ProtocolHub.class);
+            hub.receive(context.player().getUUID(), payload.data());
+        });
     }
 
     private LiteralArgumentBuilder<CommandSourceStack> rockCommand(String literal) {
@@ -154,11 +173,15 @@ public final class RockFabricMod implements DedicatedServerModInitializer {
         RockConfig config = new TomlConfigEngine(environment.dataDirectory().resolve("config"), System::getenv)
                 .loadModuleConfig("rock", DEFAULT_CONFIG);
         DatabaseSettings settings = DatabaseSettings.fromConfig(config, environment.dataDirectory());
-        boot = LoaderBootstrap.boot(environment, List.of(new RockDataModule(settings)));
+        boot = LoaderBootstrap.boot(environment,
+                List.of(new RockDataModule(settings), new RockProtocolModule()));
         // Config-driven aliases: resolve the [aliases] table over the defaults
         // and register them into CommandService (the brigadier roots are
         // already live and route through dispatchAlias).
         AliasConfig.apply(config, boot.platform().services().require(CommandService.class));
+        // Give the (already-enabled) ProtocolHub a live transport so projections
+        // reach connected clients over the rock:protocol channel.
+        boot.platform().services().register(ProtocolTransport.class, new FabricProtocolTransport(server));
         log.info("ROCK SUITE started on Fabric ({} — real adapter)", server.getServerVersion());
     }
 

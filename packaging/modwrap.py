@@ -15,13 +15,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "packaging" / "dist-mods"
-VERSION = "1.5.0"
+VERSION = "1.7.0"
 
 # id → (jar dir name, fabric depends)
 ROCK_JARS = {
     "rock-api": ("platform/rock-api", {}),
     "rock-core": ("platform/rock-core", {"rock-api": "*"}),
     "rock-data": ("platform/rock-data", {"rock-api": "*", "rock-core": "*"}),
+    "rock-protocol": ("platform/rock-protocol", {"rock-api": "*", "rock-core": "*"}),
     "rock-permissions": ("modules/rock-permissions", {"rock-core": "*", "rock-data": "*"}),
     "rock-claims": ("modules/rock-claims", {"rock-core": "*", "rock-data": "*", "rock-permissions": "*"}),
     "rock-economy": ("modules/rock-economy", {"rock-core": "*", "rock-data": "*", "rock-permissions": "*"}),
@@ -33,6 +34,7 @@ ROCK_JARS = {
     "rock-backup": ("modules/rock-backup", {"rock-core": "*", "rock-data": "*"}),
     "rock-metrics": ("modules/rock-metrics", {"rock-core": "*"}),
     "rock-migrate": ("modules/rock-migrate", {"rock-core": "*", "rock-data": "*", "rock-permissions": "*"}),
+    "rock-web": ("modules/rock-web", {"rock-core": "*", "rock-data": "*"}),
 }
 
 
