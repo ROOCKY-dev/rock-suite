@@ -8,3 +8,11 @@ build/
 .secrets.env
 *.db
 dist/
+
+# Secrets — publishing credentials (Modrinth/CurseForge/GitHub). NEVER commit.
+# Used only at v2.0.0 (insiders) publish time; should ultimately live in CI
+# secrets / env vars, not a file in the tree.
+TOKENS AND APIS.md
+TOKENS*.md
+*.tokens
+secrets/
