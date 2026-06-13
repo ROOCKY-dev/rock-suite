@@ -2,6 +2,9 @@ dist-mods/
 fabric-mod/build/
 fabric-mod/.gradle/
 fabric-mod/run/
+neoforge-mod/build/
+neoforge-mod/.gradle/
+neoforge-mod/run/
 server/world/
 server/rock/
 server/mods/
@@ -13,6 +16,8 @@ server/*.log
 server/cache/
 server/.fabric/
 server/crash-reports/
+# K4: the entire installed NeoForge dedicated server is runtime-only.
+server-neoforge/
 bots/node_modules/
 bots/package-lock.json
 

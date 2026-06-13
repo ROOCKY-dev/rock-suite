@@ -1,0 +1,14 @@
+V001__create_players.sql
+V002__create_permissions.sql
+V003__create_claims.sql
+V004__create_economy.sql
+V005__create_punishments_audit.sql
+V006__create_discord_metadata.sql
+V007__create_world_log.sql
+V008__create_claim_members.sql
+V009__permissions_contexts_options.sql
+V010__create_teams.sql
+V011__create_essentials.sql
+V012__create_item_log.sql
+V013__world_log_seq.sql
+V014__create_web_accounts.sql

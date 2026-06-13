@@ -67,3 +67,64 @@ The server database (`server/rock/rock.db`) is the receipt: 2 players, Alice's
 claim, Bob's BUILD membership, exactly the 2 *approved* breaks in the world log
 (the pre-trust grief is correctly absent), the MUTE punishment + its audit
 entry, and Alice's home — with zero ROCK errors in the server log.
+
+---
+
+# K4 — the same platform on real NeoForge
+
+K4 repeats K3 on the **other** Tier-1 loader: a real NeoForge **21.11.42**
+dedicated server (Minecraft 1.21.11 — exact parity with the K3 Fabric server).
+The entire point is that **nothing below the loader seam changed.** The real
+NeoForge adapter (`neoforge-mod/`, a standalone ModDevGradle build) compiled
+against genuine NeoForge + Mojang-mapped Minecraft on the first try with zero
+API fixups: the same `world.dimension().identifier()`, `BuiltInRegistries.BLOCK`
+and `source.permissions().hasPermission(COMMANDS_ADMIN)` calls the Fabric
+adapter uses port verbatim. The platform jars are byte-identical to Fabric's.
+
+## NeoForge's modular install (`modwrap_neoforge.py`)
+
+NeoForge only loads a `mods/` jar that is a mod (carries `neoforge.mods.toml`)
+or declares itself a library via the manifest attribute
+`FMLModType: GAMELIBRARY`. So, mirroring the Fabric wrap: the adapter jar is the
+single **mod**, and every ROCK platform/feature jar plus every third-party
+runtime jar is stamped `GAMELIBRARY` (into the manifest **main** section — an
+attribute after the first blank line lands in a per-entry section and is
+silently ignored). NeoForge then places them on the game classpath, where the
+modules are discovered by ServiceLoader exactly as in the testbench. Libraries
+the runtime already provides (Guava + its annotation constellation, slf4j) are
+skipped — the same shadowing hazard documented for Fabric. Unlike Fabric's
+nested jars, NeoForge resolves the module path flat, so libraries sit beside the
+mods rather than nested — still every ROCK piece a separate, removable jar.
+
+## One platform fix this surfaced (loader portability)
+
+Flyway's classpath **scanner** cannot enumerate resources inside a
+module-isolating classloader, so on NeoForge it found zero migrations and every
+module failed its first query. `DataMigrator` now reads a committed
+`db/migration/index.txt` (a single resource, always loadable by name via
+`getResourceAsStream` on any classloader — the same trick
+`MigrationRollbackRunner` already used for undo scripts), extracts the listed
+scripts to a temp dir, and points Flyway at its rock-solid **filesystem**
+scanner. SQL content is byte-identical, so recorded checksums stay portable
+across loaders. This is the one change K4 needed, and it is a genuine platform
+hardening, not a NeoForge workaround.
+
+## Running the on-server test
+
+```bash
+./gradlew publishToMavenLocal -x test                 # ROCK -> mavenLocal at current version
+cd packaging/neoforge-mod && gradle jar               # build the real adapter (Java 21 JVM)
+cd .. && curl -O .../neoforge-21.11.42-installer.jar  # + java -jar … --installServer  (one-time)
+python3 modwrap_neoforge.py                            # stamp + lay all jars into server-neoforge/mods/
+python3 boot-neoforge.py                               # boot, run /rock checks, print verdict
+```
+
+## K4 verdict (clean)
+
+Real NeoForge boots → the adapter `@Mod` (`rock_suite`) loads → the ROCK
+platform boots and **all 12 feature modules enable** via ServiceLoader → the
+full 22-table schema migrates (14/14) → `/rock perms group create Knights 50`
+and `… group grant Knights rock.claims.create` execute through the real
+brigadier tree and **persist to the world DB** — with zero ROCK errors (only the
+expected "no discord.token configured" no-op WARN). The cross-loader thesis is
+now proven empirically on both Tier-1 loaders.

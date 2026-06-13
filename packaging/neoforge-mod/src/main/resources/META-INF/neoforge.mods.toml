@@ -1,0 +1,28 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "Apache-2.0"
+
+[[mods]]
+modId = "rock_suite"
+version = "1.7.0"
+displayName = "ROCK SUITE"
+description = "Cross-platform Minecraft server management platform (real NeoForge adapter)."
+authors = "ROCK SUITE Founding Developer Team"
+
+# The rock-* library mods are siblings in mods/, not bundled here. They carry no
+# NeoForge metadata of their own (they are plain libraries discovered via
+# ServiceLoader), so they are added to the classpath by the modwrap step rather
+# than declared as mod dependencies.
+[[dependencies.rock_suite]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.11,)"
+ordering = "NONE"
+side = "SERVER"
+
+[[dependencies.rock_suite]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.11,)"
+ordering = "NONE"
+side = "SERVER"
