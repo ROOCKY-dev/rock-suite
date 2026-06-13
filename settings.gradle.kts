@@ -33,7 +33,7 @@ project(":rock-testbench").projectDir = file("examples/rock-testbench")
 
 // Module layer — feature modules, rock-api access only
 include(":rock-permissions", ":rock-claims", ":rock-economy", ":rock-discord", ":rock-logging", ":rock-teams", ":rock-essentials", ":rock-moderation",
-        ":rock-backup", ":rock-metrics", ":rock-migrate")
+        ":rock-backup", ":rock-metrics", ":rock-migrate", ":rock-web")
 project(":rock-logging").projectDir = file("modules/rock-logging")
 project(":rock-teams").projectDir = file("modules/rock-teams")
 project(":rock-essentials").projectDir = file("modules/rock-essentials")
@@ -41,6 +41,7 @@ project(":rock-moderation").projectDir = file("modules/rock-moderation")
 project(":rock-backup").projectDir = file("modules/rock-backup")
 project(":rock-metrics").projectDir = file("modules/rock-metrics")
 project(":rock-migrate").projectDir = file("modules/rock-migrate")
+project(":rock-web").projectDir = file("modules/rock-web")
 project(":rock-permissions").projectDir = file("modules/rock-permissions")
 project(":rock-claims").projectDir = file("modules/rock-claims")
 project(":rock-economy").projectDir = file("modules/rock-economy")

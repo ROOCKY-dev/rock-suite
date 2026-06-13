@@ -21,7 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 class MigrationRollbackRunnerTest {
 
     /** Latest migration version in db/migration — bump when adding V###s. */
-    private static final int TIP = 13;
+    private static final int TIP = 14;
 
     @TempDir
     Path tempDir;
@@ -78,12 +78,12 @@ class MigrationRollbackRunnerTest {
 
     @Test
     void rollbackOfTipRemovesItsChangesAndHistoryRow() throws Exception {
-        assertTrue(worldLogHasSeqColumn());
+        assertTrue(tables().contains("rock_web_accounts"));
         int before = historyCount();
 
         rollback.rollback(TIP);
 
-        assertFalse(worldLogHasSeqColumn(), "V013's seq column dropped");
+        assertFalse(tables().contains("rock_web_accounts"), "V014 table dropped");
         assertEquals(before - 1, historyCount());
         // Earlier migrations untouched.
         assertTrue(tables().contains("rock_players"));
@@ -94,12 +94,12 @@ class MigrationRollbackRunnerTest {
     void rollbackThenReMigrateReachesSameSchema() throws Exception {
         rollback.rollback(TIP);
         rollback.rollback(TIP - 1);
-        assertFalse(tables().contains("rock_item_log"));
+        assertFalse(worldLogHasSeqColumn(), "V013 seq column gone after rolling back to V012");
 
         new DataMigrator(dataSource).migrate();
 
-        assertTrue(tables().contains("rock_item_log"));
         assertTrue(worldLogHasSeqColumn());
+        assertTrue(tables().contains("rock_web_accounts"));
     }
 
     @Test

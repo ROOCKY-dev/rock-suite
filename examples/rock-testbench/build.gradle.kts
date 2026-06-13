@@ -28,5 +28,6 @@ dependencies {
     runtimeOnly(project(":rock-backup"))
     runtimeOnly(project(":rock-metrics"))
     runtimeOnly(project(":rock-migrate"))
+    runtimeOnly(project(":rock-web"))
     runtimeOnly(libs.slf4j.simple)
 }

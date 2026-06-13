@@ -98,6 +98,17 @@ public final class TestBench {
             }
         }
         Files.createDirectories(runDir);
+        // Pre-seed rock-web config: ephemeral-safe fixed test port + a bootstrap
+        // admin so we can drive the real dashboard over HTTP after boot.
+        Files.createDirectories(runDir.resolve("config"));
+        Files.writeString(runDir.resolve("config/rock-web.toml"), """
+                [web]
+                enabled = true
+                port = 18099
+                jwt-secret = "testbench-jwt-secret-value-0001"
+                bootstrap-admin = "admin"
+                bootstrap-admin-password = "bench-admin-pw"
+                """);
 
         // Simulated server tick thread, like MinecraftServer's event loop.
         ExecutorService tickThread = Executors.newSingleThreadExecutor(r -> new Thread(r, "Server thread"));
@@ -131,7 +142,7 @@ public final class TestBench {
 
         Map<String, ModuleState> states = platform.moduleLoader().states();
         log.info("[1] Module states: {}", states);
-        check(states.size() == 11, "all eleven feature modules were discovered");
+        check(states.size() == 12, "all twelve feature modules were discovered");
         states.forEach((id, state) -> check(state == ModuleState.RUNNING, "module " + id + " is RUNNING"));
 
         EventBus eventBus = services.require(EventBus.class);
@@ -451,6 +462,39 @@ public final class TestBench {
         check(aliceClient.stream().anyMatch(m -> m instanceof dev.rock.protocol.ProtocolMessage.Projection proj
                 && proj.type().equals("wallet.balance")), "Alice's client received a wallet.balance projection");
         hub.onDisable();
+
+        // ---------------------------------------------------------------
+        log.info("[5g] rock-web: REST dashboard over real HTTP (TRS §12, 1.7)");
+        var http = java.net.http.HttpClient.newHttpClient();
+        String webBase = "http://127.0.0.1:18099";
+        java.util.function.BiFunction<String, String, java.net.http.HttpResponse<String>> webGet =
+                (path, bearer) -> {
+                    try {
+                        var b = java.net.http.HttpRequest.newBuilder(java.net.URI.create(webBase + path)).GET();
+                        if (bearer != null) {
+                            b.header("Authorization", "Bearer " + bearer);
+                        }
+                        return http.send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                };
+        check(webGet.apply("/api/v1/me", null).statusCode() == 401, "dashboard rejects unauthenticated requests");
+        var loginResp = http.send(java.net.http.HttpRequest.newBuilder(
+                        java.net.URI.create(webBase + "/api/v1/auth/login"))
+                        .header("Content-Type", "application/json")
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                                "{\"username\":\"admin\",\"password\":\"bench-admin-pw\"}"))
+                        .build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+        check(loginResp.statusCode() == 200, "bootstrap admin logs in over HTTP");
+        // Pull the access token without a JSON dep in the testbench:
+        String accessToken = loginResp.body().replaceAll(".*\"accessToken\":\"([^\"]+)\".*", "$1");
+        check(webGet.apply("/api/v1/me", accessToken).statusCode() == 200,
+                "JWT-authed request to the dashboard succeeds");
+        check(webGet.apply("/api/v1/audit", accessToken).statusCode() == 200,
+                "admin can read the audit endpoint");
+        check(webGet.apply("/api/v1/economy/baltop", accessToken).body().contains("top"),
+                "baltop endpoint serves economy data over REST");
 
         // ---------------------------------------------------------------
         log.info("[6] Discord: identity link + queued send (no token → no-op gateway)");

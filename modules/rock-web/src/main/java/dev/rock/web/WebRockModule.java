@@ -1,21 +1,21 @@
-package dev.rock.economy;
+package dev.rock.web;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Scopes;
 import dev.rock.api.module.ModuleManifest;
 import dev.rock.api.module.RockModule;
-import dev.rock.api.services.EconomyService;
+import dev.rock.web.auth.WebAccountRepository;
 import java.util.List;
 
-/** rock-economy module entrypoint, discovered via ServiceLoader. */
-public final class EconomyRockModule implements RockModule {
+/** rock-web module entrypoint, discovered via ServiceLoader. */
+public final class WebRockModule implements RockModule {
 
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-economy", "Rock Economy", "1.7.0", "1.7",
+                "rock-web", "Rock Web", "1.7.0", "1.7",
                 List.of("ROCK SUITE Founding Developer Team"),
-                List.of("rock-core", "rock-data", "rock-permissions"));
+                List.of("rock-core", "rock-data"));
     }
 
     @Override
@@ -23,9 +23,8 @@ public final class EconomyRockModule implements RockModule {
         return new AbstractModule() {
             @Override
             protected void configure() {
-                bind(EconomyService.class).to(DefaultEconomyService.class).in(Scopes.SINGLETON);
-                bind(DefaultEconomyService.class).in(Scopes.SINGLETON);
-                bind(EconomyCommands.class).in(Scopes.SINGLETON);
+                bind(WebAccountRepository.class).in(Scopes.SINGLETON);
+                bind(WebModuleService.class).in(Scopes.SINGLETON);
             }
         };
     }

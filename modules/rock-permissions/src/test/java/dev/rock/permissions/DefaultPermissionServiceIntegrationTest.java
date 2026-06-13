@@ -160,14 +160,20 @@ class DefaultPermissionServiceIntegrationTest {
     }
 
     @Test
-    void temporaryPermissionExpires() throws Exception {
-        service.grantTemporary(player, "rock.event.vip", java.time.Duration.ofMillis(80)).join();
-        assertTrue(service.has(player, "rock.event.vip"), "active before expiry");
+    void temporaryPermissionIsActiveBeforeExpiry() {
+        // Generous TTL so "active" can't race the assertion under CPU load.
+        service.grantTemporary(player, "rock.event.vip", java.time.Duration.ofMinutes(10)).join();
 
-        Thread.sleep(120);
+        assertTrue(service.has(player, "rock.event.vip"));
+    }
+
+    @Test
+    void temporaryPermissionExpiresInEvaluation() throws Exception {
+        // Already-past expiry: evaluation must ignore it without relying on the sweep.
+        service.grantTemporary(player, "rock.event.vip", java.time.Duration.ofMillis(1)).join();
+        Thread.sleep(50);
 
         assertFalse(service.has(player, "rock.event.vip"), "evaluation ignores expired nodes");
-        // The sweep would also purge the row; evaluation alone must already be correct.
     }
 
     @Test
