@@ -9,6 +9,7 @@ dependencies {
 
     testImplementation(project(":rock-core"))
     testImplementation(project(":rock-data"))
+    testImplementation(project(":rock-protocol"))
     testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.hikaricp)
     testImplementation(libs.jdbi3.core)

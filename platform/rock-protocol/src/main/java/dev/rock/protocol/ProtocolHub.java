@@ -9,7 +9,8 @@ import dev.rock.api.event.Subscription;
 import dev.rock.api.events.economy.BalanceChangedEvent;
 import dev.rock.api.events.player.PlayerLeaveEvent;
 import dev.rock.api.lifecycle.LifecycleAware;
-import dev.rock.api.service.RockService;
+import dev.rock.api.protocol.ProtocolGateway;
+import dev.rock.api.protocol.ProtocolTransport;
 import dev.rock.api.service.ServiceRegistry;
 import dev.rock.api.services.ClaimService;
 import dev.rock.api.services.PermissionService;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +39,7 @@ import org.slf4j.LoggerFactory;
  */
 @RockInternal
 @Singleton
-public final class ProtocolHub implements RockService, LifecycleAware {
+public final class ProtocolHub implements ProtocolGateway, LifecycleAware {
 
     private static final Logger log = LoggerFactory.getLogger(ProtocolHub.class);
 
@@ -46,6 +48,10 @@ public final class ProtocolHub implements RockService, LifecycleAware {
     private final Map<UUID, ClientSession> sessions = new ConcurrentHashMap<>();
     private final List<Subscription> subscriptions = new ArrayList<>();
     private final Map<String, IntentHandler> intentHandlers = new ConcurrentHashMap<>();
+    // A player may be reachable over several transports at once (in-game
+    // custom-payload AND the web WebSocket); each transport drops players it
+    // doesn't know, so a frame fans out and lands wherever the player is.
+    private final List<ProtocolTransport> transports = new CopyOnWriteArrayList<>();
 
     @Inject
     public ProtocolHub(EventBus eventBus, ServiceRegistry services) {
@@ -98,6 +104,17 @@ public final class ProtocolHub implements RockService, LifecycleAware {
 
     public Optional<ClientSession> session(UUID playerId) {
         return Optional.ofNullable(sessions.get(playerId));
+    }
+
+    /** Registers a transport (loader custom-payload, web WebSocket, …). Idempotent. */
+    public void addTransport(ProtocolTransport transport) {
+        if (!transports.contains(transport)) {
+            transports.add(transport);
+        }
+    }
+
+    public void removeTransport(ProtocolTransport transport) {
+        transports.remove(transport);
     }
 
     // --- Inbound: frame ingest + intent dispatch ----------------------------
@@ -166,10 +183,15 @@ public final class ProtocolHub implements RockService, LifecycleAware {
         deliver(playerId, projection);
     }
 
-    /** Sends an already-modelled message straight to a player's transport (no gating). */
+    /** Sends an already-modelled message to a player across every transport (no gating). */
     private void deliver(UUID playerId, ProtocolMessage message) {
-        services.find(ProtocolTransport.class)
-                .ifPresent(transport -> transport.send(playerId, ProtocolCodec.encode(message)));
+        if (transports.isEmpty()) {
+            return;
+        }
+        byte[] frame = ProtocolCodec.encode(message);
+        for (ProtocolTransport transport : transports) {
+            transport.send(playerId, frame);
+        }
     }
 
     /**
@@ -238,6 +260,8 @@ public final class ProtocolHub implements RockService, LifecycleAware {
     public void onDisable() {
         subscriptions.forEach(Subscription::close);
         subscriptions.clear();
+        intentHandlers.clear();
+        transports.clear();
         sessions.clear();
     }
 }

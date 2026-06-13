@@ -1,6 +1,6 @@
 package dev.rock.loader.neoforge.real;
 
-import dev.rock.protocol.ProtocolTransport;
+import dev.rock.api.protocol.ProtocolTransport;
 import java.util.UUID;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;

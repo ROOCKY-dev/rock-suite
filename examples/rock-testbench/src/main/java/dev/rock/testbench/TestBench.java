@@ -445,7 +445,7 @@ public final class TestBench {
         hub.onEnable();
         java.util.List<dev.rock.protocol.ProtocolMessage> aliceClient =
                 new java.util.concurrent.CopyOnWriteArrayList<>();
-        services.register(dev.rock.protocol.ProtocolTransport.class, (pid, frame) -> {
+        hub.addTransport((pid, frame) -> {
             if (pid.equals(alice)) {
                 dev.rock.protocol.ProtocolCodec.decode(frame).ifPresent(aliceClient::add);
             }

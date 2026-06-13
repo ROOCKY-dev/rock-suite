@@ -1,6 +1,6 @@
 package dev.rock.loader.fabric.real;
 
-import dev.rock.protocol.ProtocolTransport;
+import dev.rock.api.protocol.ProtocolTransport;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;

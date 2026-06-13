@@ -13,7 +13,6 @@ import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
 import dev.rock.data.RockDataModule;
 import dev.rock.protocol.ProtocolHub;
-import dev.rock.protocol.ProtocolTransport;
 import dev.rock.protocol.RockProtocolModule;
 import java.util.Arrays;
 import java.util.List;
@@ -221,7 +220,8 @@ public final class RockNeoForgeMod {
         AliasConfig.apply(config, boot.platform().services().require(CommandService.class));
         // Give the (already-enabled) ProtocolHub a live transport so projections
         // reach connected clients over the rock:protocol channel.
-        boot.platform().services().register(ProtocolTransport.class, new NeoForgeProtocolTransport(server));
+        boot.platform().injector().getInstance(ProtocolHub.class)
+                .addTransport(new NeoForgeProtocolTransport(server));
         log.info("ROCK SUITE started on NeoForge ({} — real adapter)", server.getServerVersion());
     }
 

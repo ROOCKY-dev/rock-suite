@@ -39,11 +39,13 @@ class ProtocolHubTest {
     void setUp() {
         eventBus = new DefaultEventBus(Executors.newVirtualThreadPerTaskExecutor());
         registry = new DefaultServiceRegistry();
-        registry.register(ProtocolTransport.class, (playerId, frame) ->
-                delivered.computeIfAbsent(playerId, k -> new java.util.concurrent.CopyOnWriteArrayList<>())
-                        .add(ProtocolCodec.decode(frame).orElseThrow()));
         hub = new ProtocolHub(eventBus, registry);
         hub.onEnable();
+        // A player may be reachable over several transports; here one fake
+        // transport records the decoded frames each player received.
+        hub.addTransport((playerId, frame) ->
+                delivered.computeIfAbsent(playerId, k -> new java.util.concurrent.CopyOnWriteArrayList<>())
+                        .add(ProtocolCodec.decode(frame).orElseThrow()));
     }
 
     private List<ProtocolMessage> inbox(UUID player) {

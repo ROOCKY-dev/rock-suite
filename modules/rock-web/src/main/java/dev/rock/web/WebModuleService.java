@@ -4,6 +4,7 @@ import dev.rock.api.annotations.RockInternal;
 import dev.rock.api.config.ConfigEngine;
 import dev.rock.api.event.EventBus;
 import dev.rock.api.lifecycle.LifecycleAware;
+import dev.rock.api.protocol.ProtocolGateway;
 import dev.rock.api.service.ServiceRegistry;
 import dev.rock.web.auth.JwtCodec;
 import dev.rock.web.auth.PasswordHasher;
@@ -12,6 +13,7 @@ import dev.rock.web.auth.WebAccountRepository;
 import dev.rock.web.auth.WebAuthService;
 import dev.rock.web.http.SseHub;
 import dev.rock.web.http.WebServer;
+import dev.rock.web.http.WebSocketProtocolServer;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -48,6 +50,7 @@ public final class WebModuleService implements LifecycleAware {
 
     private WebServer server;
     private SseHub sseHub;
+    private WebSocketProtocolServer wsServer;
 
     @Inject
     public WebModuleService(ConfigEngine configEngine, EventBus eventBus,
@@ -79,6 +82,15 @@ public final class WebModuleService implements LifecycleAware {
         server = new WebServer(settings.port(), jwt,
                 new WebRoutes(auth, services).routes(), sseHub);
         server.start();
+
+        // If rock-protocol is installed, expose its projection feed to browsers
+        // over a WebSocket — the same per-player, capability-gated stream the
+        // in-game client gets. Resolved via the registry so rock-web stays
+        // rock-api-only and works fine when protocol is absent.
+        services.find(ProtocolGateway.class).ifPresent(gateway -> {
+            wsServer = new WebSocketProtocolServer(settings.protocolPort(), jwt, accounts, gateway);
+            wsServer.start();
+        });
     }
 
     private void bootstrapAdmin(WebSettings settings, WebAuthService auth) {
@@ -92,6 +104,9 @@ public final class WebModuleService implements LifecycleAware {
 
     @Override
     public void onDisable() {
+        if (wsServer != null) {
+            wsServer.stop();
+        }
         if (server != null) {
             server.stop();
         }
