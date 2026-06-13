@@ -5,7 +5,7 @@
 const mineflayer = require('mineflayer')
 
 const HOST = '127.0.0.1'
-const PORT = 25565
+const PORT = parseInt(process.env.PROTO_PORT || '25565', 10)
 const VERSION = '1.21.11'
 const CHANNEL = 'rock:protocol'
 

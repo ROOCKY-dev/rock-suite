@@ -128,3 +128,45 @@ and `… group grant Knights rock.claims.create` execute through the real
 brigadier tree and **persist to the world DB** — with zero ROCK errors (only the
 expected "no discord.token configured" no-op WARN). The cross-loader thesis is
 now proven empirically on both Tier-1 loaders.
+
+---
+
+# K5 — rock-protocol on the wire (real client check, both loaders)
+
+K3/K4 proved the **server**; K5 proves the **client seam**. The projection layer
+(`platform/rock-protocol`) is wired to a real transport — the `rock:protocol`
+custom-payload channel — and exercised end-to-end by a protocol-aware client
+against both real servers.
+
+## The transport per loader
+
+Each real adapter carries the only loader-networking-aware code; the wire model
+(`ProtocolMessage`/`ProtocolCodec`) and the hub stay identical:
+
+* **Fabric** (`fabric-mod`): `PayloadTypeRegistry` (C2S+S2C) + a global receiver
+  routing inbound frames into `ProtocolHub.receive`; outbound via
+  `ServerPlayNetworking.send`.
+* **NeoForge** (`neoforge-mod`): `RegisterPayloadHandlersEvent` →
+  `registrar("1").optional().playBidirectional(...)`; outbound via
+  `PacketDistributor.sendToPlayer`. `optional()` lets non-NeoForge clients
+  connect.
+
+Both adapters add `RockProtocolModule` to the boot (the hub auto-enables as a
+PRODUCTION-stage Guice singleton) and register the transport in the
+`ServiceRegistry`. The `RockProtocolPayload` is byte-identical across loaders:
+the body is the raw `ProtocolCodec` frame as the rest of the packet buffer (no
+inner length prefix — vanilla framing).
+
+## The real client check
+
+`bots/protocol-bot.js` is a protocol-aware mineflayer client speaking the exact
+`ProtocolCodec` layout. `run-protocol.py` (Fabric) and `run-protocol-neoforge.py`
+(NeoForge) boot the server, grant `rock.client.*` to the bot on its
+`AWAITING_GRANTS` marker, and report the verdict.
+
+**6/6 green on both loaders:** Welcome over `rock:protocol` · protocol version
+negotiated · **permission-gated** capabilities granted (`CLAIMS`,`WALLET` — only
+after the console grant) · `session.ping`→`session.pong` (nonce echoed) ·
+`claims.list`→`claim.list.end` (inbound intent → `ClaimService` → outbound
+projection). Zero ROCK errors. A modified client gains nothing — every
+capability and intent is re-validated server-side.

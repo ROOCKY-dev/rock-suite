@@ -12,6 +12,9 @@ import dev.rock.core.config.TomlConfigEngine;
 import dev.rock.core.loader.LoaderBootstrap;
 import dev.rock.data.DatabaseSettings;
 import dev.rock.data.RockDataModule;
+import dev.rock.protocol.ProtocolHub;
+import dev.rock.protocol.ProtocolTransport;
+import dev.rock.protocol.RockProtocolModule;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -26,9 +29,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -68,7 +73,23 @@ public final class RockNeoForgeMod {
 
     private volatile LoaderBootstrap.BootResult boot;
 
-    public RockNeoForgeMod() {
+    public RockNeoForgeMod(IEventBus modEventBus) {
+        // rock-protocol on the wire: register the rock:protocol custom-payload
+        // channel (optional, so non-NeoForge clients may still connect) and
+        // route inbound frames into the ProtocolHub. Payload registration is a
+        // mod-event-bus concern; the game events below ride the game bus.
+        modEventBus.addListener((Consumer<RegisterPayloadHandlersEvent>) event ->
+                event.registrar("1").optional().playBidirectional(
+                        RockProtocolPayload.TYPE, RockProtocolPayload.CODEC,
+                        (payload, context) -> {
+                            LoaderBootstrap.BootResult current = boot;
+                            if (current == null) {
+                                return;
+                            }
+                            ProtocolHub hub = current.platform().injector().getInstance(ProtocolHub.class);
+                            hub.receive(context.player().getUUID(), payload.data());
+                        }));
+
         NeoForge.EVENT_BUS.addListener((Consumer<ServerStartedEvent>) this::start);
         NeoForge.EVENT_BUS.addListener((Consumer<ServerStoppingEvent>) event -> stop());
 
@@ -192,11 +213,15 @@ public final class RockNeoForgeMod {
         RockConfig config = new TomlConfigEngine(environment.dataDirectory().resolve("config"), System::getenv)
                 .loadModuleConfig("rock", DEFAULT_CONFIG);
         DatabaseSettings settings = DatabaseSettings.fromConfig(config, environment.dataDirectory());
-        boot = LoaderBootstrap.boot(environment, List.of(new RockDataModule(settings)));
+        boot = LoaderBootstrap.boot(environment,
+                List.of(new RockDataModule(settings), new RockProtocolModule()));
         // Config-driven aliases: resolve the [aliases] table over the defaults
         // and register them into CommandService (the brigadier roots route
         // through dispatchAlias).
         AliasConfig.apply(config, boot.platform().services().require(CommandService.class));
+        // Give the (already-enabled) ProtocolHub a live transport so projections
+        // reach connected clients over the rock:protocol channel.
+        boot.platform().services().register(ProtocolTransport.class, new NeoForgeProtocolTransport(server));
         log.info("ROCK SUITE started on NeoForge ({} — real adapter)", server.getServerVersion());
     }
 
