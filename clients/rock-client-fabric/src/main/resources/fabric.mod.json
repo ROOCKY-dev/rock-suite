@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "rock_client",
+  "version": "2.0.0",
+  "name": "ROCK Client",
+  "description": "Native client companion for ROCK SUITE (RFC-001 Tier 1): wallet HUD, claim map, entry toasts — all server-authoritative over the rock:protocol channel. Vanilla clients keep 100% functionality via commands.",
+  "authors": ["ROCK SUITE Founding Developer Team"],
+  "license": "Apache-2.0",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.rock.client.RockClientMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11"
+  }
+}
