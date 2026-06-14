@@ -94,6 +94,24 @@ rock-loader-neoforge-1.0.0+mc1.21.11.jar
 rock-core-1.0.0.jar            (platform/modules are MC-agnostic — no +mc)
 ```
 
+### Every public GitHub Release ships loader-READY bundles
+
+Server admins must never be handed bare Maven jars (no `fabric.mod.json` ⇒
+Fabric silently ignores them — a real failure mode we hit). So each public
+release attaches **ready-to-drop bundles, one per loader × supported MC**, built
+by `packaging/` (modwrap + the adapter), as the primary, clearly-named assets:
+
+```
+rock-suite-fabric-<mcver>-<ver>.zip     ← extract into mods/  (the install)
+rock-suite-neoforge-<mcver>-<ver>.zip
+```
+Each bundle contains the wrapped library mods (with descriptors), the loader
+adapter, and a README listing the required loader API (Fabric API / NeoForge).
+The **raw `dev.rock:*` jars are NOT release assets** — they live on Maven
+Central / GitHub Packages for *developers only*. **[pipeline TODO]** extend
+`release.yml` to run the packaging step and attach these bundles (today they're
+attached manually).
+
 ---
 
 ## 5. Supported Minecraft matrix & LTS policy
@@ -128,30 +146,45 @@ matrix once it lands.
 
 | Artifact | Home | For |
 |---|---|---|
-| **ROCK SUITE** (platform + adapter + all modules) | **Modrinth** + **CurseForge** project `rock-suite` | server admins |
+| **One project per module** (`rock-claims`, `rock-economy`, …) | **Modrinth** + **CurseForge** | server admins |
+| **ROCK Core** (rock-api+core+data+protocol + loader adapter) | **Modrinth** + **CurseForge** project `rock-core` | the required base |
 | **rock-client** | separate **Modrinth**/**CF** project `rock-client` | players (optional) |
-| Per-release jar bundles | **GitHub Releases** (zip per MC×loader) | admins who prefer GitHub |
+| Loader-ready bundles (per MC×loader) | **GitHub Releases** (zip) — see §4 | admins who prefer GitHub |
 | `dev.rock:*` libraries | **Maven Central** (stable) + **GitHub Packages** (all) | module/plugin developers |
 | Source | **GitHub** `ROOCKY-dev/rock-suite` (monorepo) + `ROOCKY-dev/rock-client` | contributors |
 
-**Storefront project model [decision]:** one umbrella **`ROCK SUITE`** project
-(not 14 tiny pages). Each Modrinth/CF *version* is uploaded per MC version,
-tagged with both loaders, and carries the full jar set as files; the description
-explains the **modular install** (drop a subset). `rock-client` is its own
-project. If a single module later grows its own large audience, it can graduate
-to a dedicated page.
+**Storefront project model [decision — per Owner]: one project per module, with
+linked dependencies — install only what you need.** Each feature module is its
+own Modrinth/CurseForge page (`rock-claims`, `rock-economy`, `rock-web`, …). The
+required foundation ships as a single **`ROCK Core`** project (rock-api + core +
+data + protocol + the loader adapter). Every module page declares its
+**dependencies** so the storefront resolves *exactly* what's needed:
+
+- every module → **required:** `ROCK Core` + the loader's API (Fabric API / NeoForge)
+- inter-module → **required:** e.g. `rock-claims` → `rock-permissions`;
+  `rock-economy` → `rock-permissions`
+- soft links → **optional:** e.g. `rock-web` ↔ `rock-protocol` features
+
+So an admin who wants just claims installs **rock-claims**, and Modrinth/CF pull
+in ROCK Core + rock-permissions automatically — nothing more. `rock-client` is
+its own page. Each module version is uploaded per MC version, tagged with both
+loaders. (Trade-off: ~13 pages to maintain — automated by the publish step in
+§4, which pushes each module to its own project from one release.)
 
 ---
 
 ## 7. How the public uses ROCK
 
 **Server admin (the common path):**
-1. On the storefront, pick your **MC version + loader** (Fabric/NeoForge).
-2. Download the ROCK SUITE files into `mods/` — or, for a minimal install, just
-   `rock-api`, `rock-core`, `rock-data`, the adapter, plus the modules you want.
-3. Add the loader's API mod (Fabric API) — listed as a dependency.
-4. Start on **Java 21**. Configure via `config/rock/*.toml`; secrets via env vars.
-5. Optional: set `ROCK_WEB_ADMIN_PASSWORD` to enable the web dashboard.
+1. On the storefront, pick your **MC version + loader** (Fabric/NeoForge) and
+   install the **module(s) you want** (e.g. `rock-claims`). The storefront pulls
+   the linked dependencies automatically — **ROCK Core**, any required modules
+   (e.g. `rock-permissions`), and the loader API (Fabric API). Install only what
+   you need.
+   - *Or, from GitHub:* download the loader-ready bundle (§4), extract into
+     `mods/`, and delete any module jars you don't want.
+2. Start on **Java 21**. Configure via `config/rock/*.toml`; secrets via env vars.
+3. Optional: set `ROCK_WEB_ADMIN_PASSWORD` to enable the web dashboard.
 
 **Player (optional):** install `rock-client` for the in-game map/HUD; a vanilla
 client keeps 100% functionality via commands.
