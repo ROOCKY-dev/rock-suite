@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "dev.rock"
-version = "1.7.0"
+version = "2.0.0"
 
 repositories {
     mavenLocal()
@@ -34,10 +34,10 @@ neoForge {
 
 dependencies {
     // Provided at runtime by the rock-* library mods in mods/ (NOT bundled).
-    compileOnly("dev.rock:rock-api:1.7.0")
-    compileOnly("dev.rock:rock-core:1.7.0")
-    compileOnly("dev.rock:rock-data:1.7.0")
-    compileOnly("dev.rock:rock-protocol:1.7.0")
+    compileOnly("dev.rock:rock-api:2.0.0")
+    compileOnly("dev.rock:rock-core:2.0.0")
+    compileOnly("dev.rock:rock-data:2.0.0")
+    compileOnly("dev.rock:rock-protocol:2.0.0")
     compileOnly("com.google.inject:guice:7.0.0")
 }
 

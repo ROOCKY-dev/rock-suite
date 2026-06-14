@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RT_LIST = Path("/tmp/rt-jars.txt")
-ADAPTER = ROOT / "packaging" / "neoforge-mod" / "build" / "libs" / "rock-neoforge-mod-1.7.0.jar"
+ADAPTER = ROOT / "packaging" / "neoforge-mod" / "build" / "libs" / "rock-neoforge-mod-2.0.0.jar"
 MODS = ROOT / "packaging" / "server-neoforge" / "mods"
 
 # Provided by NeoForge/Minecraft — bundling our copy shadows or clashes.

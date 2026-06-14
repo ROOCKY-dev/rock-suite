@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "packaging" / "dist-mods"
-VERSION = "1.7.0"
+VERSION = "2.0.0"
 
 # id → (jar dir name, fabric depends)
 ROCK_JARS = {

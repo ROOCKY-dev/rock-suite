@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "dev.rock"
-version = "1.7.0"
+version = "2.0.0"
 
 java {
     toolchain {
@@ -29,10 +29,10 @@ dependencies {
     modImplementation("net.fabricmc.fabric-api:fabric-api:0.100.8+1.20.6")
 
     // Provided at runtime by the rock-* library mods in mods/.
-    implementation("dev.rock:rock-api:1.7.0")
-    implementation("dev.rock:rock-core:1.7.0")
-    implementation("dev.rock:rock-data:1.7.0")
-    implementation("dev.rock:rock-protocol:1.7.0")
+    implementation("dev.rock:rock-api:2.0.0")
+    implementation("dev.rock:rock-core:2.0.0")
+    implementation("dev.rock:rock-data:2.0.0")
+    implementation("dev.rock:rock-protocol:2.0.0")
     implementation("com.google.inject:guice:7.0.0")
 }
 

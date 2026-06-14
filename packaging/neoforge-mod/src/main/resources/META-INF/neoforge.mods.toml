@@ -4,7 +4,7 @@ license = "Apache-2.0"
 
 [[mods]]
 modId = "rock_suite"
-version = "1.7.0"
+version = "2.0.0"
 displayName = "ROCK SUITE"
 description = "Cross-platform Minecraft server management platform (real NeoForge adapter)."
 authors = "ROCK SUITE Founding Developer Team"

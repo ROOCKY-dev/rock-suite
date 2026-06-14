@@ -30,8 +30,8 @@ dependencies {
 
     // Shared, loader-agnostic wire model (pure Java, zero-dep). The codec and
     // message records are the contract between rock-client and the server.
-    implementation("dev.rock:rock-protocol:1.7.0")
-    implementation("dev.rock:rock-api:1.7.0")
+    implementation("dev.rock:rock-protocol:2.0.0")
+    implementation("dev.rock:rock-api:2.0.0")
 }
 
 tasks.withType<JavaCompile>().configureEach {
