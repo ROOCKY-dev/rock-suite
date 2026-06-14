@@ -156,4 +156,14 @@ class WebServerIntegrationTest {
     void unknownPathIs404() throws Exception {
         assertEquals(404, get("/api/v1/nope", login("alice", "alice-pw")).statusCode());
     }
+
+    @Test
+    void servesTheDashboardSpaAtRoot() throws Exception {
+        HttpResponse<String> root = get("/", null);
+        assertEquals(200, root.statusCode(), "SPA served without auth (auth happens in-app)");
+        assertTrue(root.headers().firstValue("Content-Type").orElse("").contains("text/html"));
+        assertTrue(root.body().contains("ROCK SUITE"), "the app shell renders the brand");
+        // Unknown non-API route falls back to the app shell (client-side routing).
+        assertEquals(200, get("/dashboard", null).statusCode());
+    }
 }

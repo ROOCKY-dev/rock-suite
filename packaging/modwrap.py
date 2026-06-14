@@ -100,6 +100,10 @@ def wrap_rock(jar: Path, mod_id: str, depends: dict, nested: list, dest: Path, t
 def main() -> None:
     nest = json.load(open("/tmp/rock-nest.json"))
     OUT.mkdir(parents=True, exist_ok=True)
+    # Clear stale wraps (e.g. an older VERSION) so the output is exactly the
+    # current set — a flat copy of dist-mods/*.jar then has no leftovers.
+    for old in OUT.glob("*.jar"):
+        old.unlink()
     tmp = OUT / ".libs"
     tmp.mkdir(exist_ok=True)
     for mod_id, (project_dir, depends) in ROCK_JARS.items():

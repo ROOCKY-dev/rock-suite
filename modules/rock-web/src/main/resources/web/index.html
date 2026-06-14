@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROCK SUITE — Dashboard</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel-2:#1c2230; --line:#2a3140;
+    --ink:#e6edf3; --muted:#8b97a7; --accent:#f5a623; --accent-2:#3b82f6;
+    --ok:#3fb950; --bad:#f85149; --radius:14px;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%,#1a2230 0,var(--bg) 60%);
+    color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh}
+  a{color:var(--accent-2);text-decoration:none}
+  .hidden{display:none!important}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.5px}
+  .brand .dot{width:12px;height:12px;border-radius:3px;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  .brand small{color:var(--muted);font-weight:500;letter-spacing:0}
+
+  /* Login */
+  #login{display:grid;place-items:center;min-height:100vh;padding:24px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:0 18px 50px rgba(0,0,0,.45)}
+  #login .card{width:340px;padding:30px}
+  #login h1{font-size:20px;margin:18px 0 4px}
+  #login p{color:var(--muted);margin:0 0 22px;font-size:13px}
+  label{display:block;color:var(--muted);font-size:12px;margin:14px 0 6px;text-transform:uppercase;letter-spacing:.6px}
+  input{width:100%;padding:11px 12px;background:var(--bg);border:1px solid var(--line);
+    border-radius:9px;color:var(--ink);font-size:14px;font-family:var(--mono)}
+  input:focus{outline:none;border-color:var(--accent-2)}
+  button{cursor:pointer;border:none;border-radius:9px;font-weight:600;font-size:14px}
+  .btn-primary{width:100%;margin-top:20px;padding:12px;background:var(--accent);color:#1a1300}
+  .btn-primary:hover{filter:brightness(1.07)}
+  .err{color:var(--bad);font-size:13px;margin-top:12px;min-height:18px}
+
+  /* App */
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:16px 26px;border-bottom:1px solid var(--line);background:rgba(13,17,23,.7);
+    position:sticky;top:0;backdrop-filter:blur(8px);z-index:5}
+  header .right{display:flex;align-items:center;gap:16px;color:var(--muted);font-size:13px}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+    background:var(--panel-2);border:1px solid var(--line);font-family:var(--mono);font-size:12px}
+  .pill .led{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .pill.up .led{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .pill.down .led{background:var(--bad)}
+  .btn-ghost{padding:7px 13px;background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn-ghost:hover{color:var(--ink);border-color:var(--muted)}
+  main{padding:26px;max-width:1180px;margin:0 auto;display:grid;gap:20px;
+    grid-template-columns:1fr 1fr;grid-auto-rows:min-content}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .panel.wide{grid-column:1/-1}
+  .panel h2{margin:0;padding:15px 18px;font-size:13px;text-transform:uppercase;letter-spacing:.8px;
+    color:var(--muted);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .panel h2 .count{color:var(--accent);font-family:var(--mono)}
+  .rows{max-height:340px;overflow:auto}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:13px}
+  .row:last-child{border-bottom:none}
+  .row .av{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#2a3550,#1a2030);
+    display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--accent)}
+  .row .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .val{font-family:var(--mono);color:var(--ink)}
+  .muted{color:var(--muted)}
+  .tag{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;background:var(--panel-2);color:var(--muted)}
+  .empty{padding:26px 18px;color:var(--muted);text-align:center;font-size:13px}
+  /* live feed */
+  #feed .row{font-family:var(--mono);font-size:12.5px;animation:flash .8s ease-out}
+  @keyframes flash{from{background:rgba(245,166,35,.10)}to{background:transparent}}
+  .ts{color:var(--muted);font-size:11px}
+  @media(max-width:760px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="login">
+  <div class="card">
+    <div class="brand"><span class="dot"></span> ROCK SUITE <small>dashboard</small></div>
+    <h1>Sign in</h1>
+    <p>Cross-platform server management.</p>
+    <form id="loginForm">
+      <label for="u">Username</label>
+      <input id="u" autocomplete="username" autofocus>
+      <label for="p">Password</label>
+      <input id="p" type="password" autocomplete="current-password">
+      <button class="btn-primary" type="submit">Sign in</button>
+      <div class="err" id="loginErr"></div>
+    </form>
+  </div>
+</section>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand"><span class="dot"></span> ROCK SUITE <small>dashboard</small></div>
+    <div class="right">
+      <span class="pill" id="sse"><span class="led"></span> events</span>
+      <span class="pill" id="ws"><span class="led"></span> protocol</span>
+      <span id="who" class="muted"></span>
+      <button class="btn-ghost" id="logout">Sign out</button>
+    </div>
+  </header>
+  <main>
+    <section class="panel">
+      <h2>Players online <span class="count" id="playersCount">0</span></h2>
+      <div class="rows" id="players"><div class="empty">No one online.</div></div>
+    </section>
+    <section class="panel">
+      <h2>Top balances</h2>
+      <div class="rows" id="baltop"><div class="empty">No accounts yet.</div></div>
+    </section>
+    <section class="panel wide" id="auditPanel">
+      <h2>Audit log <span class="tag">admin</span></h2>
+      <div class="rows" id="audit"><div class="empty">No audit entries.</div></div>
+    </section>
+    <section class="panel wide">
+      <h2>Live activity <span class="count" id="feedCount">0</span></h2>
+      <div class="rows" id="feed"><div class="empty">Waiting for events…</div></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let token = sessionStorage.getItem('rock_token');
+let role = sessionStorage.getItem('rock_role');
+
+async function api(path){
+  const r = await fetch('/api/v1'+path, {headers:{Authorization:'Bearer '+token}});
+  if(r.status===401){ logout(); throw new Error('unauthorized'); }
+  return r.json();
+}
+function avatar(name){ return (name||'?').slice(0,2).toUpperCase(); }
+function rowsInto(el, items, render){
+  if(!items || !items.length){ return; }
+  el.innerHTML = items.map(render).join('');
+}
+
+async function loadPlayers(){
+  const d = await api('/players');
+  const online = d.online||[];
+  $('#playersCount').textContent = online.length;
+  if(online.length) rowsInto($('#players'), online, p =>
+    `<div class="row"><span class="av">${avatar(p.username)}</span><span class="grow">${p.username}</span><span class="tag">${p.id.slice(0,8)}</span></div>`);
+}
+async function loadBaltop(){
+  const d = await api('/economy/baltop');
+  if((d.top||[]).length) rowsInto($('#baltop'), d.top, (a,i) =>
+    `<div class="row"><span class="av">#${i+1}</span><span class="grow">${a.owner}</span><span class="val">${a.balance}</span></div>`);
+}
+async function loadAudit(){
+  if(role!=='ADMIN'){ $('#auditPanel').classList.add('hidden'); return; }
+  const d = await api('/audit');
+  if((d.entries||[]).length) rowsInto($('#audit'), d.entries, e =>
+    `<div class="row"><span class="tag">${e.action}</span><span class="grow">${e.target} · ${e.actor}</span><span class="ts">${(e.timestamp||'').replace('T',' ').slice(0,19)}</span></div>`);
+}
+
+let feedN = 0;
+function pushFeed(kind, text){
+  const feed = $('#feed');
+  if(feed.querySelector('.empty')) feed.innerHTML='';
+  const div = document.createElement('div');
+  div.className='row';
+  div.innerHTML = `<span class="tag">${kind}</span><span class="grow">${text}</span><span class="ts">${new Date().toLocaleTimeString()}</span>`;
+  feed.prepend(div);
+  while(feed.children.length>60) feed.lastChild.remove();
+  $('#feedCount').textContent = ++feedN;
+}
+
+function connectSse(){
+  const es = new EventSource('/api/v1/events?token='+encodeURIComponent(token));
+  const led = $('#sse');
+  es.onopen = () => led.classList.add('up');
+  es.onerror = () => { led.classList.remove('up'); led.classList.add('down'); };
+  es.onmessage = ev => pushFeed('event', ev.data);
+  ['join','leave','transaction','claim','punishment'].forEach(t =>
+    es.addEventListener(t, ev => pushFeed(t, ev.data)));
+}
+function connectWs(){
+  const led = $('#ws');
+  try{
+    const port = (parseInt(location.port||'80',10))+1;
+    const sock = new WebSocket(`ws://${location.hostname}:${port}/?token=${encodeURIComponent(token)}`);
+    sock.binaryType='arraybuffer';
+    sock.onopen = () => { led.classList.add('up'); sock.send(helloFrame(['CLAIMS','WALLET'])); };
+    sock.onclose = () => { led.classList.remove('up'); led.classList.add('down'); };
+    sock.onerror = () => { led.classList.remove('up'); led.classList.add('down'); };
+    sock.onmessage = ev => pushFeed('protocol', decodeFrame(new Uint8Array(ev.data)));
+  }catch(e){ led.classList.add('down'); }
+}
+// Minimal ProtocolCodec mirror (tagged, length-prefixed) for the WS feed.
+function helloFrame(caps){
+  const enc = new TextEncoder(); const parts=[Uint8Array.of(0)];
+  const i32 = n => Uint8Array.of((n>>24)&255,(n>>16)&255,(n>>8)&255,n&255);
+  parts.push(i32(1), i32(caps.length));
+  for(const c of caps){ const b=enc.encode(c); parts.push(Uint8Array.of((b.length>>8)&255,b.length&255), b); }
+  return concat(parts);
+}
+function concat(arrs){ let n=arrs.reduce((s,a)=>s+a.length,0); const out=new Uint8Array(n); let o=0; for(const a of arrs){out.set(a,o);o+=a.length;} return out; }
+function decodeFrame(buf){
+  const dec=new TextDecoder(); let o=0; const kind=buf[o++];
+  const i32=()=>{const v=(buf[o]<<24)|(buf[o+1]<<16)|(buf[o+2]<<8)|buf[o+3];o+=4;return v;};
+  const str=()=>{const len=(buf[o]<<8)|buf[o+1];o+=2;const s=dec.decode(buf.slice(o,o+len));o+=len;return s;};
+  if(kind===1){const v=i32();const n=i32();const c=[];for(let i=0;i<n;i++)c.push(str());return 'welcome v'+v+' '+JSON.stringify(c);}
+  if(kind===2){const t=str();const n=i32();const f={};for(let i=0;i<n;i++){const k=str();f[k]=str();}return t+' '+JSON.stringify(f);}
+  return 'kind'+kind;
+}
+
+async function enterApp(){
+  $('#login').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  const me = await api('/me').catch(()=>({}));
+  $('#who').textContent = (me.user||'') + (role==='ADMIN'?' · admin':'');
+  await Promise.all([loadPlayers(), loadBaltop(), loadAudit()]);
+  connectSse();
+  connectWs();
+  setInterval(()=>{loadPlayers().catch(()=>{}); loadBaltop().catch(()=>{});}, 15000);
+}
+function logout(){
+  sessionStorage.clear(); token=null; role=null;
+  location.reload();
+}
+$('#logout').onclick = logout;
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  $('#loginErr').textContent='';
+  try{
+    const r = await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:$('#u').value, password:$('#p').value})});
+    if(!r.ok){ $('#loginErr').textContent='Invalid credentials.'; return; }
+    const d = await r.json();
+    token=d.accessToken; role=d.role;
+    sessionStorage.setItem('rock_token',token); sessionStorage.setItem('rock_role',role);
+    enterApp();
+  }catch(err){ $('#loginErr').textContent='Connection error.'; }
+};
+
+if(token){ enterApp().catch(logout); }
+</script>
+</body>
+</html>

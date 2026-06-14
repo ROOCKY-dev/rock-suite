@@ -66,6 +66,12 @@ public final class WebServer {
         }
         String path = exchange.getRequestURI().getPath();
 
+        // The dashboard SPA + assets (everything that isn't the API) is static.
+        if (exchange.getRequestMethod().equals("GET") && !path.startsWith("/api/")) {
+            serveStatic(exchange, path);
+            return;
+        }
+
         // Server-Sent Events feed (real-time projections) is its own handler.
         if (path.equals("/api/v1/events")) {
             sseHub.handle(exchange, authenticate(exchange).orElse(null));
@@ -104,10 +110,61 @@ public final class WebServer {
 
     private Optional<JwtCodec.Claims> authenticate(HttpExchange exchange) {
         String header = exchange.getRequestHeaders().getFirst("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) {
-            return Optional.empty();
+        if (header != null && header.startsWith("Bearer ")) {
+            return jwt.verify(header.substring("Bearer ".length()), JwtCodec.TokenType.ACCESS);
         }
-        return jwt.verify(header.substring("Bearer ".length()), JwtCodec.TokenType.ACCESS);
+        // EventSource (SSE) can't set headers, so accept a ?token= query param too.
+        String query = exchange.getRequestURI().getQuery();
+        if (query != null) {
+            for (String pair : query.split("&")) {
+                if (pair.startsWith("token=")) {
+                    return jwt.verify(pair.substring("token=".length()), JwtCodec.TokenType.ACCESS);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private void serveStatic(HttpExchange exchange, String path) throws IOException {
+        String resource = path.equals("/") ? "web/index.html" : "web" + path;
+        if (resource.contains("..")) {
+            respond(exchange, 403, new byte[0]);
+            return;
+        }
+        byte[] body = readResource(resource);
+        if (body == null) {
+            // SPA fallback: unknown non-asset routes render the app shell.
+            body = readResource("web/index.html");
+            resource = "web/index.html";
+        }
+        if (body == null) {
+            write(exchange, Response.notFound());
+            return;
+        }
+        exchange.getResponseHeaders().set("Content-Type", contentType(resource));
+        respond(exchange, 200, body);
+    }
+
+    private static byte[] readResource(String resource) throws IOException {
+        try (var in = WebServer.class.getClassLoader().getResourceAsStream(resource)) {
+            return in == null ? null : in.readAllBytes();
+        }
+    }
+
+    private static String contentType(String resource) {
+        if (resource.endsWith(".html")) {
+            return "text/html; charset=utf-8";
+        }
+        if (resource.endsWith(".js")) {
+            return "application/javascript; charset=utf-8";
+        }
+        if (resource.endsWith(".css")) {
+            return "text/css; charset=utf-8";
+        }
+        if (resource.endsWith(".svg")) {
+            return "image/svg+xml";
+        }
+        return "text/plain; charset=utf-8";
     }
 
     private void write(HttpExchange exchange, Response response) throws IOException {
