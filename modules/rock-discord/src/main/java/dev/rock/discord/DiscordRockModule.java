@@ -30,7 +30,7 @@ public final class DiscordRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-discord", "Rock Discord", "1.7.0", "1.7",
+                "rock-discord", "Rock Discord", "2.0.0", "2.0",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }

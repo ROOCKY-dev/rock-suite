@@ -13,7 +13,7 @@ public final class ModerationRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-moderation", "Rock Moderation", "1.7.0", "1.7",
+                "rock-moderation", "Rock Moderation", "2.0.0", "2.0",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data", "rock-permissions"));
     }

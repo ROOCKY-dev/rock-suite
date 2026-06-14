@@ -13,7 +13,7 @@ public final class WebRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-web", "Rock Web", "1.7.0", "1.7",
+                "rock-web", "Rock Web", "2.0.0", "2.0",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core", "rock-data"));
     }

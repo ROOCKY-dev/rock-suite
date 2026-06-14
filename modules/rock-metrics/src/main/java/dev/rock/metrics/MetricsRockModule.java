@@ -12,7 +12,7 @@ public final class MetricsRockModule implements RockModule {
     @Override
     public ModuleManifest manifest() {
         return new ModuleManifest(
-                "rock-metrics", "Rock Metrics", "1.7.0", "1.7",
+                "rock-metrics", "Rock Metrics", "2.0.0", "2.0",
                 List.of("ROCK SUITE Founding Developer Team"),
                 List.of("rock-core"));
     }
