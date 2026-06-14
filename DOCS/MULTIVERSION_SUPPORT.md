@@ -1,10 +1,43 @@
-# ROCK SUITE — Multi-Version Minecraft Support (Exploration)
+# ROCK SUITE — Multi-Version Minecraft Support
 
-**Status:** Plan — NOT scheduled yet. Captured at Project Owner's request to
-guide a later milestone. No platform code changes are implied today.
+**Status:** IN PROGRESS (v2.0). The matrix mechanism is proven — see §7.
 
 **Target matrix (eventual):** 1.20.x · 1.21.x · 26.x (Mojang's new
 year-based numbering, e.g. 26.1, 26.2) — across Fabric and NeoForge.
+
+---
+
+## 7. Measured results (v2.0)
+
+Option C executed. The cost prediction held **exactly**: every difference is a
+small, mechanical edit inside the adapter; the platform (api/core/data/protocol)
+and all feature modules are byte-identical across versions.
+
+| Target | Loader | Status |
+|---|---|---|
+| **1.21.11** | Fabric | real server + protocol-client checks (K3 13/13, K5 6/6) |
+| **1.21.11** | NeoForge | real server + protocol-client checks (K4, K5 6/6) |
+| **1.20.6** | Fabric | adapter compiles + K-harness check (`packaging/fabric-1.20`) |
+| 1.20.6 | NeoForge | same mechanism (copy `neoforge-mod` via ModDevGradle) |
+| **26.x** | both | NOT released by Mojang/Fabric yet — pending upstream |
+
+**The entire 1.21.11 -> 1.20.6 delta (Fabric), all inside the adapter:**
+1. `ResourceKey.identifier()` -> `location()` (id accessor renamed in 1.21.11).
+2. `Identifier` -> `ResourceLocation` (class renamed; `(ns, path)` ctor public in 1.20.x).
+3. `MinecraftServer.getServerDirectory()` returns `File` (-> `Path` in 1.21.11).
+4. Command permissions: `source.permissions().hasPermission(COMMANDS_ADMIN)`
+   (1.21.11 `PermissionSet`) -> `source.hasPermission(2)` (int level).
+5. fabric-loader / fabric-api versions per MC.
+
+That is **5 edits across ~3 files** — and zero elsewhere — to span a major
+version gap. CustomPacketPayload + the networking API (PayloadTypeRegistry /
+ServerPlayNetworking) are stable across 1.20.5->1.21.11, so the protocol
+transport ported verbatim.
+
+**Next:** with the deltas catalogued, collapse `fabric-mod` + `fabric-1.20`
+(and the NeoForge pair) into one Stonecutter project per loader (§3 Option B),
+so a single source tree emits the whole per-version jar matrix; add the 26.x
+column the day it ships.
 
 ---
 
